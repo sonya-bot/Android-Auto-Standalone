@@ -7,9 +7,17 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 import com.example.androidautoselfheadunit.decoder.VideoDecoder
+import com.example.androidautoselfheadunit.input.InputChannel
+import com.example.androidautoselfheadunit.input.TouchEventMapper
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 
 class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var videoDecoder: VideoDecoder? = null
+    private val touchMapper = TouchEventMapper()
+    private var inputChannel: InputChannel? = null
+    private val uiScope = CoroutineScope(Dispatchers.Main)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -22,6 +30,11 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
                         ViewGroup.LayoutParams.MATCH_PARENT,
                     )
                 holder.addCallback(this@MainActivity)
+                setOnTouchListener { _, event ->
+                    touchMapper.updateScreenSize(width, height)
+                    inputChannel?.sendTouchEvent(event)
+                    true
+                }
             }
 
         val frameLayout =
@@ -30,6 +43,11 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
             }
 
         setContentView(frameLayout)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        uiScope.cancel()
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
