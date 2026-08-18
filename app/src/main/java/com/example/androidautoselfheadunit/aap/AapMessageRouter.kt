@@ -84,26 +84,28 @@ class AapMessageRouter(
         )
     }
 
-private suspend fun handleMediaControl(message: AapMessage) {
+    private suspend fun handleMediaControl(message: AapMessage) {
         when (message.messageType) {
             18 -> { // MESSAGE_AUDIO_FOCUS_REQUEST_VALUE
                 val request = Control.AudioFocusRequestNotification.parseFrom(message.payload)
-                val mappedState = when (request.request) {
-                    Control.AudioFocusRequestNotification.AudioFocusRequestType.RELEASE -> Control.AudioFocusNotification.AudioFocusStateType.STATE_LOSS
-                    Control.AudioFocusRequestNotification.AudioFocusRequestType.GAIN -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN
-                    Control.AudioFocusRequestNotification.AudioFocusRequestType.GAIN_TRANSIENT -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN_TRANSIENT
-                    Control.AudioFocusRequestNotification.AudioFocusRequestType.GAIN_TRANSIENT_MAY_DUCK -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN_TRANSIENT_GUIDANCE_ONLY
-                    else -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN
-                }
-                val response = Control.AudioFocusNotification.newBuilder()
-                    .setFocusState(mappedState)
-                    .build()
+                val mappedState =
+                    when (request.request) {
+                        Control.AudioFocusRequestNotification.AudioFocusRequestType.RELEASE -> Control.AudioFocusNotification.AudioFocusStateType.STATE_LOSS
+                        Control.AudioFocusRequestNotification.AudioFocusRequestType.GAIN -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN
+                        Control.AudioFocusRequestNotification.AudioFocusRequestType.GAIN_TRANSIENT -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN_TRANSIENT
+                        Control.AudioFocusRequestNotification.AudioFocusRequestType.GAIN_TRANSIENT_MAY_DUCK -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN_TRANSIENT_GUIDANCE_ONLY
+                        else -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN
+                    }
+                val response =
+                    Control.AudioFocusNotification.newBuilder()
+                        .setFocusState(mappedState)
+                        .build()
                 transport.sendEncrypted(
                     AapMessage(
                         message.channelId,
-                        19, // MESSAGE_AUDIO_FOCUS_NOTIFICATION_VALUE
-                        response
-                    )
+                        19,
+                        response,
+                    ),
                 )
             }
             32768 -> {
@@ -147,7 +149,7 @@ private suspend fun handleMediaControl(message: AapMessage) {
                 val isMediaDataOrConfig = message.messageType == 0 || message.messageType == 1
 
                 if (message.channelId == Channel.ID_VID) {
-                    videoChannel?.handleMessage(message)
+                    videoChannel?.handleMessage(message, isConfig = message.messageType == 1)
                     if (isFirstOrSingle && isMediaDataOrConfig) {
                         sendMediaAck(message.channelId)
                     }

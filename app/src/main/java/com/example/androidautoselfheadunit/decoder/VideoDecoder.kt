@@ -39,10 +39,12 @@ class VideoDecoder(private val surface: Surface) {
         }
     }
 
+    @Suppress("MagicNumber")
     fun decode(
         data: ByteArray,
         offset: Int,
         length: Int,
+        isConfig: Boolean = false,
     ) {
         if (!isConfigured) return
         val codec = mediaCodec ?: return
@@ -53,11 +55,13 @@ class VideoDecoder(private val surface: Surface) {
                 val inputBuffer: ByteBuffer? = codec.getInputBuffer(inputBufferIndex)
                 inputBuffer?.clear()
                 inputBuffer?.put(data, offset, length)
-                codec.queueInputBuffer(inputBufferIndex, 0, length, 0, 0)
+                val flags = if (isConfig) MediaCodec.BUFFER_FLAG_CODEC_CONFIG else 0
+                val pts = System.nanoTime() / 1000
+                codec.queueInputBuffer(inputBufferIndex, 0, length, pts, flags)
             }
 
             val bufferInfo = MediaCodec.BufferInfo()
-            var outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, TIMEOUT_US)
+            var outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 0)
             while (outputBufferIndex >= 0) {
                 codec.releaseOutputBuffer(outputBufferIndex, true)
                 outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 0)

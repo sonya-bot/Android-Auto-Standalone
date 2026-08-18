@@ -9,7 +9,10 @@ class VideoChannel(
     private val reconstructor: FragmentReconstructor,
     private val videoDecoder: VideoDecoder,
 ) {
-    fun handleMessage(message: AapMessage) {
+    fun handleMessage(
+        message: AapMessage,
+        isConfig: Boolean = false,
+    ) {
         // Strip the offset if it is an unfragmented or first fragment.
         // Assuming AapMessage.data here is the raw payload, and AapTransport handles the rest.
         // In this mock architecture, we just pass the raw data.
@@ -20,7 +23,7 @@ class VideoChannel(
             // Find NAL start code.
             val startCodeOffset = findStartCode(assembled)
             if (startCodeOffset >= 0) {
-                videoDecoder.decode(assembled, startCodeOffset, assembled.size - startCodeOffset)
+                videoDecoder.decode(assembled, startCodeOffset, assembled.size - startCodeOffset, isConfig)
             }
         }
     }
