@@ -38,7 +38,7 @@ class AapTransport(
             val flags = headerBuffer[1]
             val encLen = ((headerBuffer[2].toInt() and 0xFF) shl 8) or (headerBuffer[3].toInt() and 0xFF)
 
-            if (flags.toInt() and 0x09 == 0x09) {
+            if (flags.toInt() == 9) {
                 readExact(4) // Skip fragment total size
             }
 
@@ -47,7 +47,10 @@ class AapTransport(
 
             var messageType = 0
             val payload: ByteArray
-            if (decryptedPayload.size >= 2) {
+            val flagInt = flags.toInt()
+            val isMiddleOrLast = (flagInt == 8) || (flagInt == 10)
+            
+            if (!isMiddleOrLast && decryptedPayload.size >= 2) {
                 messageType = ((decryptedPayload[0].toInt() and 0xFF) shl 8) or (decryptedPayload[1].toInt() and 0xFF)
                 payload = ByteArray(decryptedPayload.size - 2)
                 System.arraycopy(decryptedPayload, 2, payload, 0, payload.size)
@@ -63,7 +66,6 @@ class AapTransport(
             )
         }
     }
-
     private suspend fun readExact(length: Int): ByteArray {
         val buffer = ByteArray(length)
         var totalRead = 0

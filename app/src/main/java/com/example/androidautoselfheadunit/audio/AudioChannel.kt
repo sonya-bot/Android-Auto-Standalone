@@ -8,7 +8,7 @@ class AudioChannel(
     private val audioTrackWrapper: AudioTrackWrapper,
 ) {
     companion object {
-        private const val HEADER_OFFSET = 10
+        private const val HEADER_OFFSET = 8
     }
 
     init {
