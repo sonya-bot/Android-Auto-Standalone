@@ -84,8 +84,28 @@ class AapMessageRouter(
         )
     }
 
-    private suspend fun handleMediaControl(message: AapMessage) {
+private suspend fun handleMediaControl(message: AapMessage) {
         when (message.messageType) {
+            18 -> { // MESSAGE_AUDIO_FOCUS_REQUEST_VALUE
+                val request = Control.AudioFocusRequestNotification.parseFrom(message.payload)
+                val mappedState = when (request.request) {
+                    Control.AudioFocusRequestNotification.AudioFocusRequestType.RELEASE -> Control.AudioFocusNotification.AudioFocusStateType.STATE_LOSS
+                    Control.AudioFocusRequestNotification.AudioFocusRequestType.GAIN -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN
+                    Control.AudioFocusRequestNotification.AudioFocusRequestType.GAIN_TRANSIENT -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN_TRANSIENT
+                    Control.AudioFocusRequestNotification.AudioFocusRequestType.GAIN_TRANSIENT_MAY_DUCK -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN_TRANSIENT_GUIDANCE_ONLY
+                    else -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN
+                }
+                val response = Control.AudioFocusNotification.newBuilder()
+                    .setFocusState(mappedState)
+                    .build()
+                transport.sendEncrypted(
+                    AapMessage(
+                        message.channelId,
+                        19, // MESSAGE_AUDIO_FOCUS_NOTIFICATION_VALUE
+                        response
+                    )
+                )
+            }
             32768 -> {
                 val configResponse =
                     Media.Config.newBuilder()

@@ -26,29 +26,20 @@ class VideoChannel(
     }
 
     private fun findStartCode(data: ByteArray): Int {
-        for (i in 0 until data.size - NAL_START_CODE_LEN) {
-            if (isStartCodeAt(data, i)) {
-                return i
+        for (i in 0 until data.size - 2) {
+            if (data[i] == 0.toByte() && data[i + 1] == 0.toByte()) {
+                if (data[i + 2] == 1.toByte()) {
+                    return i // 3-byte start code
+                }
+                if (i + 3 < data.size && data[i + 2] == 0.toByte() && data[i + 3] == 1.toByte()) {
+                    return i // 4-byte start code
+                }
             }
         }
         return -1
     }
 
-    private fun isStartCodeAt(
-        data: ByteArray,
-        index: Int,
-    ): Boolean {
-        val b0 = data[index]
-        val b1 = data[index + OFFSET_1]
-        val b2 = data[index + OFFSET_2]
-        val b3 = data[index + OFFSET_3]
-        return b0 == 0.toByte() && b1 == 0.toByte() && b2 == 0.toByte() && b3 == 1.toByte()
-    }
-
     companion object {
         private const val NAL_START_CODE_LEN = 3
-        private const val OFFSET_1 = 1
-        private const val OFFSET_2 = 2
-        private const val OFFSET_3 = 3
     }
 }
