@@ -7,7 +7,7 @@ class ControlChannel(
 ) {
     suspend fun doServiceDiscovery() {
         // 1. Send Service Discovery Request
-        val request = AapMessage(0, 1, byteArrayOf())
+        val request = AapMessage(0, 1, 11.toByte(), byteArrayOf())
         transport.sendEncrypted(request)
 
         // 2. Receive Service Discovery Response

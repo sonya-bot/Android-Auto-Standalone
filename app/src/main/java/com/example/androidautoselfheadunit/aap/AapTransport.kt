@@ -32,7 +32,7 @@ class AapTransport(
                 throw IOException("Connection closed")
             }
             // Placeholder: decrypt using sslContext and parse into AapMessage
-            AapMessage(0, 0, buffer.copyOf(bytesRead))
+            AapMessage(0, 0, 11.toByte(), buffer.copyOf(bytesRead))
         }
     }
 }
