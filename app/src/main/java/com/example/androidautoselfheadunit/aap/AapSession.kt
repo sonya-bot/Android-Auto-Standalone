@@ -17,8 +17,8 @@ class AapSession(
 
     private val sslContext = AapSslContext()
 
-    suspend fun startHandshake() {
-        withContext(Dispatchers.IO) {
+    suspend fun startHandshake(): AapTransport {
+        return withContext(Dispatchers.IO) {
             // 1. Send Version Request
             connection.write(VERSION_REQUEST)
 
@@ -44,6 +44,7 @@ class AapSession(
             val transport = AapTransport(connection, sslContext)
             val controlChannel = ControlChannel(transport)
             controlChannel.doServiceDiscovery()
+            return@withContext transport
         }
     }
 }

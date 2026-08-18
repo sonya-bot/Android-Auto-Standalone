@@ -1,23 +1,49 @@
 package com.example.androidautoselfheadunit.ui
 
 import android.os.Bundle
+import android.util.Log
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.example.androidautoselfheadunit.aap.AapSession
+import com.example.androidautoselfheadunit.aap.AapTransport
+import com.example.androidautoselfheadunit.audio.AudioChannel
+import com.example.androidautoselfheadunit.audio.AudioTrackWrapper
+import com.example.androidautoselfheadunit.connection.ConnectionManager
+import com.example.androidautoselfheadunit.connection.ConnectionState
+import com.example.androidautoselfheadunit.connection.SocketHeadUnitConnection
 import com.example.androidautoselfheadunit.decoder.VideoDecoder
 import com.example.androidautoselfheadunit.input.InputChannel
 import com.example.androidautoselfheadunit.input.TouchEventMapper
+import com.example.androidautoselfheadunit.video.FragmentReconstructor
+import com.example.androidautoselfheadunit.video.VideoChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
+    companion object {
+        private const val TAG = "MainActivity"
+        private const val VIDEO_CHANNEL_ID = 5
+        private const val AUDIO_MEDIA_CHANNEL_ID = 2
+        private const val AUDIO_NAV_CHANNEL_ID = 4
+        private const val AUDIO_SYS_CHANNEL_ID = 6
+        private const val AUDIO_SAMPLE_RATE = 48000
+    }
+
     private var videoDecoder: VideoDecoder? = null
     private val touchMapper = TouchEventMapper()
     private var inputChannel: InputChannel? = null
+    private var videoChannel: VideoChannel? = null
+    private var audioChannel: AudioChannel? = null
     private val uiScope = CoroutineScope(Dispatchers.Main)
+
+    private lateinit var connectionManager: ConnectionManager
+    private var transport: AapTransport? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,16 +69,98 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
             }
 
         setContentView(frameLayout)
+
+        setupConnection()
+    }
+
+    private fun setupConnection() {
+        val socketConnection = SocketHeadUnitConnection()
+        connectionManager =
+            ConnectionManager(socketConnection) { conn ->
+                val t = AapSession(conn).startHandshake()
+                transport = t
+                t
+            }
+
+        lifecycleScope.launch {
+            connectionManager.connectionState.collect { state ->
+                when (state) {
+                    is ConnectionState.Connected -> {
+                        Log.i(TAG, "Connected to Head Unit Server")
+                        transport?.let { t ->
+                            inputChannel = InputChannel(t, touchMapper, uiScope)
+                            startMessageLoop(t)
+                        }
+                    }
+                    is ConnectionState.Error -> {
+                        Log.e(TAG, "Connection Error", state.cause)
+                        showErrorDialog()
+                    }
+                    else -> {}
+                }
+            }
+        }
+
+        lifecycleScope.launch {
+            connectionManager.startConnection()
+        }
+    }
+
+    private fun showErrorDialog() {
+        ErrorDialogHelper.showHeadUnitServerDownDialog(
+            context = this,
+            onRetry = {
+                lifecycleScope.launch {
+                    connectionManager.startConnection()
+                }
+            },
+            onCancel = {
+                finish()
+            },
+        )
+    }
+
+    private fun startMessageLoop(t: AapTransport) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                while (true) {
+                    val msg = t.receiveEncrypted()
+                    when (msg.channelId) {
+                        VIDEO_CHANNEL_ID -> videoChannel?.handleMessage(msg)
+                        AUDIO_MEDIA_CHANNEL_ID, AUDIO_NAV_CHANNEL_ID, AUDIO_SYS_CHANNEL_ID ->
+                            audioChannel?.handleMessage(
+                                msg,
+                            )
+                    }
+                }
+            } catch (e: java.io.IOException) {
+                Log.e(TAG, "Message loop error", e)
+            }
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         uiScope.cancel()
+        lifecycleScope.launch {
+            connectionManager.disconnect()
+        }
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        videoDecoder = VideoDecoder(holder.surface)
-        videoDecoder?.start()
+        val decoder = VideoDecoder(holder.surface)
+        decoder.start()
+        videoDecoder = decoder
+        videoChannel = VideoChannel(FragmentReconstructor(), decoder)
+
+        val audioTrackWrapper =
+            AudioTrackWrapper(
+                AUDIO_SAMPLE_RATE,
+                android.media.AudioFormat.CHANNEL_OUT_STEREO,
+                android.media.AudioFormat.ENCODING_PCM_16BIT,
+            )
+        audioTrackWrapper.start()
+        audioChannel = AudioChannel(audioTrackWrapper)
     }
 
     override fun surfaceChanged(
@@ -67,5 +175,9 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         videoDecoder?.stop()
         videoDecoder = null
+        videoChannel = null
+
+        audioChannel?.stop()
+        audioChannel = null
     }
 }

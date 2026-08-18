@@ -9,7 +9,7 @@ import java.io.IOException
 
 class ConnectionManager(
     private val connection: HeadUnitConnection,
-    private val performHandshake: suspend (HeadUnitConnection) -> Unit = {
+    private val performHandshake: suspend (HeadUnitConnection) -> Any? = {
         AapSession(it).startHandshake()
     },
 ) {
