@@ -26,7 +26,17 @@ class VideoDecoder(private val surface: Surface) {
                     VIDEO_WIDTH,
                     VIDEO_HEIGHT,
                 )
-            mediaCodec = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+                        var codec: android.media.MediaCodec? = null
+            try {
+                codec = android.media.MediaCodec.createByCodecName("c2.android.avc.decoder")
+            } catch (e: Exception) {
+                try {
+                    codec = android.media.MediaCodec.createByCodecName("OMX.google.h264.decoder")
+                } catch (e2: Exception) {
+                    codec = android.media.MediaCodec.createDecoderByType(android.media.MediaFormat.MIMETYPE_VIDEO_AVC)
+                }
+            }
+            mediaCodec = codec
             mediaCodec?.configure(format, surface, null, 0)
             mediaCodec?.start()
             isConfigured = true
