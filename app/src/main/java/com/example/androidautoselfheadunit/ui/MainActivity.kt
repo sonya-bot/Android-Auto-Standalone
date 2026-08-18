@@ -40,6 +40,7 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var videoDecoder: VideoDecoder? = null
     private val touchMapper = TouchEventMapper()
     private var inputChannel: InputChannel? = null
+    private var aapMessageRouter: com.example.androidautoselfheadunit.aap.AapMessageRouter? = null
     private var videoChannel: VideoChannel? = null
     private var audioChannel: AudioChannel? = null
     private val uiScope = CoroutineScope(Dispatchers.Main)
@@ -95,14 +96,14 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
                                 com.example.androidautoselfheadunit.aap.ControlChannel(
                                     t,
                                 )
-                            val router =
+                            aapMessageRouter =
                                 com.example.androidautoselfheadunit.aap.AapMessageRouter(
                                     t,
                                     controlChannel,
                                     videoChannel,
                                     audioChannel,
                                 )
-                            startMessageLoop(t, router)
+                            startMessageLoop(t, aapMessageRouter!!)
                         }
                     }
                     is ConnectionState.Error -> {
@@ -171,6 +172,8 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
             )
         audioTrackWrapper.start()
         audioChannel = AudioChannel(audioTrackWrapper)
+        aapMessageRouter?.videoChannel = videoChannel
+        aapMessageRouter?.audioChannel = audioChannel
     }
 
     override fun surfaceChanged(
@@ -189,5 +192,7 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         audioChannel?.stop()
         audioChannel = null
+        aapMessageRouter?.videoChannel = null
+        aapMessageRouter?.audioChannel = null
     }
 }

@@ -13,8 +13,8 @@ import com.example.androidautoselfheadunit.video.VideoChannel
 class AapMessageRouter(
     private val transport: AapTransport,
     private val controlChannel: ControlChannel,
-    private val videoChannel: VideoChannel?,
-    private val audioChannel: AudioChannel?,
+    var videoChannel: VideoChannel?,
+    var audioChannel: AudioChannel?,
 ) {
     private val sessionIds = mutableMapOf<Int, Int>()
 
