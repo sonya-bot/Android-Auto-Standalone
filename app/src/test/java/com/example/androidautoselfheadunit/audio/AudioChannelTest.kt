@@ -38,12 +38,12 @@ class AudioChannelTest {
         val channel = AudioChannel(wrapper)
 
         val payload = ByteArray(20) { it.toByte() }
-        val message = AapMessage(channelId = 2, messageType = 0x800f, flags = 11, payload = payload)
+        val message = AapMessage(channelId = 2, messageType = 0, flags = 11, payload = payload)
 
         channel.handleMessage(message)
 
-        assertEquals(10, wrapper.writtenOffset)
-        assertEquals(10, wrapper.writtenLength)
+        assertEquals(8, wrapper.writtenOffset)
+        assertEquals(12, wrapper.writtenLength)
         assertArrayEquals(payload, wrapper.writtenData)
     }
 

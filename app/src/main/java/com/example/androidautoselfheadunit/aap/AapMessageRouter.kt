@@ -16,6 +16,8 @@ class AapMessageRouter(
     private val videoChannel: VideoChannel?,
     private val audioChannel: AudioChannel?,
 ) {
+    private val sessionIds = mutableMapOf<Int, Int>()
+
     suspend fun handleMessage(message: AapMessage) {
         if (message.messageType == Control.ControlMsgType.MESSAGE_CHANNEL_OPEN_REQUEST_VALUE) {
             val response =
@@ -50,12 +52,8 @@ class AapMessageRouter(
                     )
                 }
             }
-            Channel.ID_VID -> {
-                handleMediaControl(message)
-            }
-            Channel.ID_AUD, Channel.ID_AU1, Channel.ID_AU2 -> {
-                handleMediaControl(message)
-            }
+            Channel.ID_VID -> handleMediaControl(message)
+            Channel.ID_AUD, Channel.ID_AU1, Channel.ID_AU2 -> handleMediaControl(message)
             Channel.ID_INP -> {
                 if (message.messageType == 32770) {
                     val response =
@@ -74,13 +72,25 @@ class AapMessageRouter(
         }
     }
 
+    private suspend fun sendMediaAck(channelId: Int) {
+        val sessionId = sessionIds[channelId] ?: 0
+        val ack = Media.Ack.newBuilder().setSessionId(sessionId).setAck(1).build()
+        transport.sendEncrypted(
+            AapMessage(
+                channelId,
+                32772,
+                ack,
+            ),
+        )
+    }
+
     private suspend fun handleMediaControl(message: AapMessage) {
         when (message.messageType) {
             32768 -> {
                 val configResponse =
                     Media.Config.newBuilder()
                         .setStatus(Media.Config.ConfigStatus.HEADUNIT)
-                        .setMaxUnacked(1)
+                        .setMaxUnacked(4)
                         .addConfigurationIndices(0)
                         .build()
                 transport.sendEncrypted(
@@ -107,18 +117,25 @@ class AapMessageRouter(
                 }
             }
             32769 -> {
+                val startRequest = Media.Start.parseFrom(message.payload)
+                sessionIds[message.channelId] = startRequest.sessionId
             }
-            32770 -> {
-            }
-            32772 -> {
-            }
-            32775 -> {
-            }
+            32770, 32772, 32775 -> {}
             else -> {
+                val flagInt = message.flags.toInt()
+                val isFirstOrSingle = flagInt == 9 || flagInt == 11
+                val isMediaDataOrConfig = message.messageType == 0 || message.messageType == 1
+
                 if (message.channelId == Channel.ID_VID) {
                     videoChannel?.handleMessage(message)
+                    if (isFirstOrSingle && isMediaDataOrConfig) {
+                        sendMediaAck(message.channelId)
+                    }
                 } else if (message.channelId == Channel.ID_AUD || message.channelId == Channel.ID_AU1 || message.channelId == Channel.ID_AU2) {
                     audioChannel?.handleMessage(message)
+                    if (isFirstOrSingle && isMediaDataOrConfig) {
+                        sendMediaAck(message.channelId)
+                    }
                 }
             }
         }

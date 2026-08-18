@@ -49,7 +49,7 @@ class AapTransport(
             val payload: ByteArray
             val flagInt = flags.toInt()
             val isMiddleOrLast = (flagInt == 8) || (flagInt == 10)
-            
+
             if (!isMiddleOrLast && decryptedPayload.size >= 2) {
                 messageType = ((decryptedPayload[0].toInt() and 0xFF) shl 8) or (decryptedPayload[1].toInt() and 0xFF)
                 payload = ByteArray(decryptedPayload.size - 2)
@@ -66,6 +66,7 @@ class AapTransport(
             )
         }
     }
+
     private suspend fun readExact(length: Int): ByteArray {
         val buffer = ByteArray(length)
         var totalRead = 0

@@ -16,6 +16,7 @@ class AudioChannel(
     }
 
     fun handleMessage(message: AapMessage) {
+        if (message.messageType != 0) return
         val offset = HEADER_OFFSET
         val length = message.payload.size - offset
         if (length > 0) {
