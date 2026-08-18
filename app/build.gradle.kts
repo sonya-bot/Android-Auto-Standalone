@@ -37,6 +37,7 @@ android {
 }
 
 dependencies {
+    implementation("com.google.protobuf:protobuf-java:3.25.1")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
@@ -64,4 +65,8 @@ protobuf {
             }
         }
     }
+}
+
+configurations.all {
+    exclude(group = "com.google.protobuf", module = "protobuf-javalite")
 }

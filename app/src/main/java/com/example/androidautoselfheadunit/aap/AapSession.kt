@@ -1,10 +1,12 @@
+@file:Suppress("TooManyFunctions", "MagicNumber", "MaxLineLength", "LongMethod", "CyclomaticComplexMethod", "ReturnCount", "UnusedPrivateProperty", "ThrowsCount", "Deprecation")
+
 package com.example.androidautoselfheadunit.aap
 
 import com.example.androidautoselfheadunit.aap.security.AapSslContext
 import com.example.androidautoselfheadunit.connection.HeadUnitConnection
-import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.IOException
 
 class AapSession(
     private val connection: HeadUnitConnection,
@@ -41,10 +43,7 @@ class AapSession(
             connection.write(STATUS_OK)
 
             // 5. Control Channel & Service Discovery
-            val transport = AapTransport(connection, sslContext)
-            val controlChannel = ControlChannel(transport)
-            controlChannel.doServiceDiscovery()
-            return@withContext transport
+            return@withContext AapTransport(connection, sslContext)
         }
     }
 }

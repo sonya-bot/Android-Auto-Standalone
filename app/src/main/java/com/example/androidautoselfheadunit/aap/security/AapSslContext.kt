@@ -8,6 +8,29 @@ import javax.net.ssl.SSLEngine
 import javax.net.ssl.SSLEngineResult
 
 class AapSslContext {
+    fun encrypt(payload: ByteArray): ByteArray {
+        val appBuffer = ByteBuffer.wrap(payload)
+        val netBuffer = ByteBuffer.allocate(sslEngine.session.packetBufferSize + payload.size)
+        sslEngine.wrap(appBuffer, netBuffer)
+        netBuffer.flip()
+        val outBytes = ByteArray(netBuffer.remaining())
+        netBuffer.get(outBytes)
+        return outBytes
+    }
+
+    fun decrypt(encryptedPayload: ByteArray): ByteArray {
+        val netBuffer = ByteBuffer.wrap(encryptedPayload)
+        val appBuffer =
+            ByteBuffer.allocate(
+                sslEngine.session.applicationBufferSize + encryptedPayload.size,
+            )
+        sslEngine.unwrap(netBuffer, appBuffer)
+        appBuffer.flip()
+        val outBytes = ByteArray(appBuffer.remaining())
+        appBuffer.get(outBytes)
+        return outBytes
+    }
+
     private val sslContext: SSLContext = SSLContext.getInstance("TLS")
     private lateinit var sslEngine: SSLEngine
     private lateinit var txBuffer: ByteBuffer

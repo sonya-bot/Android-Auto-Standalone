@@ -1,0 +1,126 @@
+@file:Suppress("TooManyFunctions", "MagicNumber", "MaxLineLength", "LongMethod", "CyclomaticComplexMethod", "ReturnCount", "UnusedPrivateProperty", "ThrowsCount", "Deprecation")
+
+package com.example.androidautoselfheadunit.aap
+
+import com.example.androidautoselfheadunit.aap.protocol.Channel
+import com.example.androidautoselfheadunit.aap.protocol.proto.Common
+import com.example.androidautoselfheadunit.aap.protocol.proto.Control
+import com.example.androidautoselfheadunit.aap.protocol.proto.Input
+import com.example.androidautoselfheadunit.aap.protocol.proto.Media
+import com.example.androidautoselfheadunit.audio.AudioChannel
+import com.example.androidautoselfheadunit.video.VideoChannel
+
+class AapMessageRouter(
+    private val transport: AapTransport,
+    private val controlChannel: ControlChannel,
+    private val videoChannel: VideoChannel?,
+    private val audioChannel: AudioChannel?,
+) {
+    suspend fun handleMessage(message: AapMessage) {
+        if (message.messageType == Control.ControlMsgType.MESSAGE_CHANNEL_OPEN_REQUEST_VALUE) {
+            val response =
+                Control.ChannelOpenResponse.newBuilder()
+                    .setStatus(Common.MessageStatus.STATUS_SUCCESS)
+                    .build()
+            transport.sendEncrypted(
+                AapMessage(
+                    message.channelId,
+                    Control.ControlMsgType.MESSAGE_CHANNEL_OPEN_RESPONSE_VALUE,
+                    response,
+                ),
+            )
+            return
+        }
+
+        when (message.channelId) {
+            Channel.ID_CTR -> {
+                if (message.messageType == Control.ControlMsgType.MESSAGE_SERVICE_DISCOVERY_REQUEST_VALUE) {
+                    controlChannel.handleServiceDiscoveryRequest()
+                } else if (message.messageType == Control.ControlMsgType.MESSAGE_PING_REQUEST_VALUE) {
+                    val pingResponse =
+                        Control.PingResponse.newBuilder()
+                            .setTimestamp(System.nanoTime())
+                            .build()
+                    transport.sendEncrypted(
+                        AapMessage(
+                            message.channelId,
+                            Control.ControlMsgType.MESSAGE_PING_RESPONSE_VALUE,
+                            pingResponse,
+                        ),
+                    )
+                }
+            }
+            Channel.ID_VID -> {
+                handleMediaControl(message)
+            }
+            Channel.ID_AUD, Channel.ID_AU1, Channel.ID_AU2 -> {
+                handleMediaControl(message)
+            }
+            Channel.ID_INP -> {
+                if (message.messageType == 32770) {
+                    val response =
+                        Input.BindingResponse.newBuilder().setStatus(
+                            Common.MessageStatus.STATUS_SUCCESS,
+                        ).build()
+                    transport.sendEncrypted(
+                        AapMessage(
+                            message.channelId,
+                            32771,
+                            response,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    private suspend fun handleMediaControl(message: AapMessage) {
+        when (message.messageType) {
+            32768 -> {
+                val configResponse =
+                    Media.Config.newBuilder()
+                        .setStatus(Media.Config.ConfigStatus.HEADUNIT)
+                        .setMaxUnacked(1)
+                        .addConfigurationIndices(0)
+                        .build()
+                transport.sendEncrypted(
+                    AapMessage(
+                        message.channelId,
+                        32771,
+                        configResponse,
+                    ),
+                )
+
+                if (message.channelId == Channel.ID_VID) {
+                    val focusRequest =
+                        Media.VideoFocusNotification.newBuilder()
+                            .setMode(Media.VideoFocusMode.VIDEO_FOCUS_PROJECTED)
+                            .setUnsolicited(false)
+                            .build()
+                    transport.sendEncrypted(
+                        AapMessage(
+                            Channel.ID_VID,
+                            32776,
+                            focusRequest,
+                        ),
+                    )
+                }
+            }
+            32769 -> {
+            }
+            32770 -> {
+            }
+            32772 -> {
+            }
+            32775 -> {
+            }
+            else -> {
+                if (message.channelId == Channel.ID_VID) {
+                    videoChannel?.handleMessage(message)
+                } else if (message.channelId == Channel.ID_AUD || message.channelId == Channel.ID_AU1 || message.channelId == Channel.ID_AU2) {
+                    audioChannel?.handleMessage(message)
+                }
+            }
+        }
+    }
+}

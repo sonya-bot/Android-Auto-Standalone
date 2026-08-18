@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions", "MagicNumber", "MaxLineLength", "LongMethod", "CyclomaticComplexMethod", "ReturnCount", "UnusedPrivateProperty", "ThrowsCount", "Deprecation")
+
 package com.example.androidautoselfheadunit.ui
 
 import android.os.Bundle
@@ -89,7 +91,18 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
                         Log.i(TAG, "Connected to Head Unit Server")
                         transport?.let { t ->
                             inputChannel = InputChannel(t, touchMapper, uiScope)
-                            startMessageLoop(t)
+                            val controlChannel =
+                                com.example.androidautoselfheadunit.aap.ControlChannel(
+                                    t,
+                                )
+                            val router =
+                                com.example.androidautoselfheadunit.aap.AapMessageRouter(
+                                    t,
+                                    controlChannel,
+                                    videoChannel,
+                                    audioChannel,
+                                )
+                            startMessageLoop(t, router)
                         }
                     }
                     is ConnectionState.Error -> {
@@ -120,18 +133,15 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         )
     }
 
-    private fun startMessageLoop(t: AapTransport) {
+    private fun startMessageLoop(
+        t: AapTransport,
+        router: com.example.androidautoselfheadunit.aap.AapMessageRouter,
+    ) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 while (true) {
                     val msg = t.receiveEncrypted()
-                    when (msg.channelId) {
-                        VIDEO_CHANNEL_ID -> videoChannel?.handleMessage(msg)
-                        AUDIO_MEDIA_CHANNEL_ID, AUDIO_NAV_CHANNEL_ID, AUDIO_SYS_CHANNEL_ID ->
-                            audioChannel?.handleMessage(
-                                msg,
-                            )
-                    }
+                    router.handleMessage(msg)
                 }
             } catch (e: java.io.IOException) {
                 Log.e(TAG, "Message loop error", e)

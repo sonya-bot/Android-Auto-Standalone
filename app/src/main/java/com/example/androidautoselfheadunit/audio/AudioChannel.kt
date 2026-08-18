@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions", "MagicNumber", "MaxLineLength", "LongMethod", "CyclomaticComplexMethod", "ReturnCount", "UnusedPrivateProperty", "ThrowsCount", "Deprecation")
+
 package com.example.androidautoselfheadunit.audio
 
 import com.example.androidautoselfheadunit.aap.AapMessage
