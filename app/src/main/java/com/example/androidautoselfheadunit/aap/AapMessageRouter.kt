@@ -65,6 +65,8 @@ class AapMessageRouter(
                             pingResponse,
                         ),
                     )
+                } else if (message.messageType == Control.ControlMsgType.MESSAGE_AUDIO_FOCUS_REQUEST_VALUE) {
+                    handleAudioFocusRequest(message)
                 }
             }
             Channel.ID_VID -> handleMediaControl(message)
@@ -127,29 +129,33 @@ class AapMessageRouter(
         )
     }
 
+    private suspend fun handleAudioFocusRequest(message: AapMessage) {
+        val request = Control.AudioFocusRequestNotification.parseFrom(message.payload)
+        val mappedState =
+            when (request.request) {
+                Control.AudioFocusRequestNotification.AudioFocusRequestType.RELEASE -> Control.AudioFocusNotification.AudioFocusStateType.STATE_LOSS
+                Control.AudioFocusRequestNotification.AudioFocusRequestType.GAIN -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN
+                Control.AudioFocusRequestNotification.AudioFocusRequestType.GAIN_TRANSIENT -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN_TRANSIENT
+                Control.AudioFocusRequestNotification.AudioFocusRequestType.GAIN_TRANSIENT_MAY_DUCK -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN_TRANSIENT_GUIDANCE_ONLY
+                else -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN
+            }
+        val response =
+            Control.AudioFocusNotification.newBuilder()
+                .setFocusState(mappedState)
+                .build()
+        transport.sendEncrypted(
+            AapMessage(
+                message.channelId,
+                Control.ControlMsgType.MESSAGE_AUDIO_FOCUS_NOTIFICATION_VALUE,
+                response,
+            ),
+        )
+    }
+
     private suspend fun handleMediaControl(message: AapMessage) {
         when (message.messageType) {
-            18 -> { // MESSAGE_AUDIO_FOCUS_REQUEST_VALUE
-                val request = Control.AudioFocusRequestNotification.parseFrom(message.payload)
-                val mappedState =
-                    when (request.request) {
-                        Control.AudioFocusRequestNotification.AudioFocusRequestType.RELEASE -> Control.AudioFocusNotification.AudioFocusStateType.STATE_LOSS
-                        Control.AudioFocusRequestNotification.AudioFocusRequestType.GAIN -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN
-                        Control.AudioFocusRequestNotification.AudioFocusRequestType.GAIN_TRANSIENT -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN_TRANSIENT
-                        Control.AudioFocusRequestNotification.AudioFocusRequestType.GAIN_TRANSIENT_MAY_DUCK -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN_TRANSIENT_GUIDANCE_ONLY
-                        else -> Control.AudioFocusNotification.AudioFocusStateType.STATE_GAIN
-                    }
-                val response =
-                    Control.AudioFocusNotification.newBuilder()
-                        .setFocusState(mappedState)
-                        .build()
-                transport.sendEncrypted(
-                    AapMessage(
-                        message.channelId,
-                        19,
-                        response,
-                    ),
-                )
+            Control.ControlMsgType.MESSAGE_AUDIO_FOCUS_REQUEST_VALUE -> {
+                handleAudioFocusRequest(message)
             }
             32768 -> {
                 val configResponse =

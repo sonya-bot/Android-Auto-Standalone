@@ -207,8 +207,22 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         videoDecoder = decoder
         videoChannel = VideoChannel(FragmentReconstructor(), decoder)
 
-        val mediaAudioWrapper = AudioTrackWrapper(48000, android.media.AudioFormat.CHANNEL_OUT_STEREO, android.media.AudioFormat.ENCODING_PCM_16BIT)
-        val sysAudioWrapper = AudioTrackWrapper(16000, android.media.AudioFormat.CHANNEL_OUT_MONO, android.media.AudioFormat.ENCODING_PCM_16BIT)
+        val mediaAudioWrapper =
+            AudioTrackWrapper(
+                AUDIO_SAMPLE_RATE,
+                android.media.AudioFormat.CHANNEL_OUT_STEREO,
+                android.media.AudioFormat.ENCODING_PCM_16BIT,
+                android.media.AudioAttributes.USAGE_MEDIA,
+                android.media.AudioAttributes.CONTENT_TYPE_MUSIC,
+            )
+        val sysAudioWrapper =
+            AudioTrackWrapper(
+                16000,
+                android.media.AudioFormat.CHANNEL_OUT_MONO,
+                android.media.AudioFormat.ENCODING_PCM_16BIT,
+                android.media.AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE,
+                android.media.AudioAttributes.CONTENT_TYPE_SPEECH,
+            )
         mediaAudioWrapper.start()
         sysAudioWrapper.start()
         mediaAudioChannel = AudioChannel(mediaAudioWrapper)

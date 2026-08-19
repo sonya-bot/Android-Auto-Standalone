@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions", "MagicNumber", "MaxLineLength", "LongMethod", "CyclomaticComplexMethod", "ReturnCount", "UnusedPrivateProperty", "ThrowsCount", "Deprecation")
+
 package com.example.androidautoselfheadunit.audio
 
 import android.media.AudioAttributes
@@ -8,18 +10,21 @@ open class AudioTrackWrapper(
     private val sampleRate: Int,
     private val channelConfig: Int,
     private val audioFormat: Int,
+    private val usage: Int = AudioAttributes.USAGE_MEDIA,
+    private val contentType: Int = AudioAttributes.CONTENT_TYPE_MUSIC,
 ) {
     private var audioTrack: AudioTrack? = null
 
     open fun start() {
         val minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormat)
         if (minBufferSize > 0) {
+            val bufferSize = maxOf(minBufferSize * 4, BUFFER_SIZE_BYTES)
             audioTrack =
                 AudioTrack.Builder()
                     .setAudioAttributes(
                         AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .setUsage(usage)
+                            .setContentType(contentType)
                             .build(),
                     )
                     .setAudioFormat(
@@ -29,7 +34,7 @@ open class AudioTrackWrapper(
                             .setEncoding(audioFormat)
                             .build(),
                     )
-                    .setBufferSizeInBytes(minBufferSize)
+                    .setBufferSizeInBytes(bufferSize)
                     .setTransferMode(AudioTrack.MODE_STREAM)
                     .build()
 
@@ -49,5 +54,9 @@ open class AudioTrackWrapper(
         audioTrack?.stop()
         audioTrack?.release()
         audioTrack = null
+    }
+
+    companion object {
+        private const val BUFFER_SIZE_BYTES = 32768
     }
 }
