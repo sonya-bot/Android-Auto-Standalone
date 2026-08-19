@@ -1,17 +1,13 @@
 package com.example.androidautoselfheadunit.connection
 
-import com.example.androidautoselfheadunit.aap.AapSession
 import com.example.androidautoselfheadunit.common.Constants
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.io.IOException
 
 class ConnectionManager(
     private val connection: HeadUnitConnection,
-    private val performHandshake: suspend (HeadUnitConnection) -> Any? = {
-        AapSession(it).startHandshake()
-    },
+    private val performHandshake: suspend (HeadUnitConnection) -> Any?,
 ) {
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Idle)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
@@ -34,7 +30,7 @@ class ConnectionManager(
             performHandshake(connection)
 
             _connectionState.value = ConnectionState.Connected
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             _connectionState.value = ConnectionState.Error(e)
             try {
                 connection.disconnect()

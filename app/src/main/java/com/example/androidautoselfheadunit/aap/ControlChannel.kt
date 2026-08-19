@@ -7,17 +7,30 @@ import com.example.androidautoselfheadunit.aap.protocol.Channel
 import com.example.androidautoselfheadunit.aap.protocol.proto.Common
 import com.example.androidautoselfheadunit.aap.protocol.proto.Control
 import com.example.androidautoselfheadunit.aap.protocol.proto.Media
+import com.example.androidautoselfheadunit.aap.protocol.proto.Sensors
 
 class ControlChannel(
     private val transport: AapTransport,
 ) {
     suspend fun handleServiceDiscoveryRequest() {
+        val sensorService =
+            Control.Service.newBuilder().apply {
+                id = Channel.ID_SEN
+                sensorSourceService =
+                    Control.Service.SensorSourceService.newBuilder().apply {
+                        addSensors(sensor(Sensors.SensorType.DRIVING_STATUS))
+                        addSensors(sensor(Sensors.SensorType.NIGHT))
+                    }.build()
+            }.build()
+
         val videoService =
             Control.Service.newBuilder().apply {
                 id = Channel.ID_VID
                 mediaSinkService =
                     Control.Service.MediaSinkService.newBuilder().apply {
                         availableType = Media.MediaCodecType.MEDIA_CODEC_VIDEO_H264_BP
+                        audioType = Media.AudioStreamType.NONE
+                        availableWhileInCall = true
                         addVideoConfigs(
                             Control.Service.MediaSinkService.VideoConfiguration.newBuilder().apply {
                                 codecResolution = Control.Service.MediaSinkService.VideoConfiguration.VideoCodecResolutionType._800x480
@@ -30,6 +43,28 @@ class ControlChannel(
                             }.build(),
                         )
                     }.build()
+            }.build()
+
+        val microphoneService =
+            Control.Service.newBuilder().apply {
+                id = Channel.ID_MIC
+                mediaSourceService =
+                    Control.Service.MediaSourceService.newBuilder().apply {
+                        type = Media.MediaCodecType.MEDIA_CODEC_AUDIO_PCM
+                        audioConfig = Media.AudioConfiguration.newBuilder().apply {
+                            sampleRate = 16000
+                            numberOfBits = 16
+                            numberOfChannels = 1
+                        }.build()
+                        availableWhileInCall = true
+                    }.build()
+            }.build()
+
+        val mediaPlaybackService =
+            Control.Service.newBuilder().apply {
+                id = Channel.ID_MPB
+                mediaPlaybackService =
+                    Control.Service.MediaPlaybackStatusService.newBuilder().build()
             }.build()
 
         val inputService =
@@ -73,10 +108,14 @@ class ControlChannel(
                 make = "SelfHeadUnit"
                 model = "Emulator"
                 year = "2026"
+                vehicleId = "SelfHeadUnit"
                 headUnitMake = "SelfHeadUnit"
                 headUnitModel = "Emulator"
                 headUnitSoftwareBuild = "1"
                 headUnitSoftwareVersion = "1.0"
+                canPlayNativeMediaDuringVr = false
+                hideProjectedClock = false
+                displayName = "Self Head Unit"
                 driverPosition = Control.DriverPosition.DRIVER_POSITION_RIGHT
 
                 headunitInfo =
@@ -86,14 +125,18 @@ class ControlChannel(
                         make = "SelfHeadUnit"
                         model = "Emulator"
                         year = "2026"
+                        vehicleId = "SelfHeadUnit"
                         headUnitSoftwareBuild = "1"
                         headUnitSoftwareVersion = "1.0"
                     }.build()
 
+                addServices(sensorService)
                 addServices(videoService)
                 addServices(inputService)
                 addServices(audioSystem)
                 addServices(audioMedia)
+                addServices(microphoneService)
+                addServices(mediaPlaybackService)
             }.build()
 
         transport.sendEncrypted(
@@ -104,4 +147,7 @@ class ControlChannel(
             ),
         )
     }
+
+    private fun sensor(type: Sensors.SensorType): Control.Service.SensorSourceService.Sensor =
+        Control.Service.SensorSourceService.Sensor.newBuilder().setType(type).build()
 }

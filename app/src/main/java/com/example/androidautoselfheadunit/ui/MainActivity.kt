@@ -8,6 +8,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.example.androidautoselfheadunit.aap.AapSession
@@ -23,6 +24,7 @@ import com.example.androidautoselfheadunit.input.TouchEventMapper
 import com.example.androidautoselfheadunit.video.FragmentReconstructor
 import com.example.androidautoselfheadunit.video.VideoChannel
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -43,6 +45,7 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var aapMessageRouter: com.example.androidautoselfheadunit.aap.AapMessageRouter? = null
     private var videoChannel: VideoChannel? = null
     private var audioChannel: AudioChannel? = null
+    private lateinit var statusView: TextView
     private val uiScope = CoroutineScope(Dispatchers.Main)
 
     private lateinit var connectionManager: ConnectionManager
@@ -69,6 +72,23 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         val frameLayout =
             FrameLayout(this).apply {
                 addView(surfaceView)
+                statusView =
+                    TextView(this@MainActivity).apply {
+                        text = getString(com.example.androidautoselfheadunit.R.string.status_connecting)
+                        setTextColor(android.graphics.Color.WHITE)
+                        setBackgroundColor(0xB3000000.toInt())
+                        textSize = 18f
+                        gravity = android.view.Gravity.CENTER
+                        setPadding(32, 24, 32, 24)
+                    }
+                addView(
+                    statusView,
+                    FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        android.view.Gravity.CENTER,
+                    ),
+                )
             }
 
         setContentView(frameLayout)
@@ -80,7 +100,7 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         val socketConnection = SocketHeadUnitConnection()
         connectionManager =
             ConnectionManager(socketConnection) { conn ->
-                val t = AapSession(conn).startHandshake()
+                val t = AapSession(applicationContext, conn).startHandshake()
                 transport = t
                 t
             }
@@ -90,6 +110,7 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 when (state) {
                     is ConnectionState.Connected -> {
                         Log.i(TAG, "Connected to Head Unit Server")
+                        statusView.text = getString(com.example.androidautoselfheadunit.R.string.status_starting_projection)
                         transport?.let { t ->
                             inputChannel = InputChannel(t, touchMapper, uiScope)
                             val controlChannel =
@@ -108,6 +129,8 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
                     }
                     is ConnectionState.Error -> {
                         Log.e(TAG, "Connection Error", state.cause)
+                        statusView.visibility = android.view.View.VISIBLE
+                        statusView.text = getString(com.example.androidautoselfheadunit.R.string.status_connection_failed)
                         showErrorDialog()
                     }
                     else -> {}
@@ -124,6 +147,8 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         ErrorDialogHelper.showHeadUnitServerDownDialog(
             context = this,
             onRetry = {
+                statusView.visibility = android.view.View.VISIBLE
+                statusView.text = getString(com.example.androidautoselfheadunit.R.string.status_connecting)
                 lifecycleScope.launch {
                     connectionManager.startConnection()
                 }
@@ -144,8 +169,14 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
                     val msg = t.receiveEncrypted()
                     router.handleMessage(msg)
                 }
-            } catch (e: java.io.IOException) {
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
                 Log.e(TAG, "Message loop error", e)
+                runOnUiThread {
+                    statusView.text = getString(com.example.androidautoselfheadunit.R.string.status_connection_failed)
+                    showErrorDialog()
+                }
             }
         }
     }
@@ -159,7 +190,10 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        val decoder = VideoDecoder(holder.surface)
+        val decoder =
+            VideoDecoder(holder.surface) {
+                runOnUiThread { statusView.visibility = android.view.View.GONE }
+            }
         decoder.start()
         videoDecoder = decoder
         videoChannel = VideoChannel(FragmentReconstructor(), decoder)

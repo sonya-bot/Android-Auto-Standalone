@@ -6,7 +6,10 @@ import android.util.Log
 import android.view.Surface
 import java.nio.ByteBuffer
 
-class VideoDecoder(private val surface: Surface) {
+class VideoDecoder(
+    private val surface: Surface,
+    private val onFirstFrameRendered: () -> Unit = {},
+) {
     companion object {
         private const val TAG = "VideoDecoder"
         private const val VIDEO_WIDTH = 800
@@ -16,6 +19,7 @@ class VideoDecoder(private val surface: Surface) {
 
     private var mediaCodec: MediaCodec? = null
     private var isConfigured = false
+    private var hasRenderedFrame = false
 
     fun start() {
         if (isConfigured) return
@@ -40,6 +44,7 @@ class VideoDecoder(private val surface: Surface) {
             mediaCodec?.configure(format, surface, null, 0)
             mediaCodec?.start()
             isConfigured = true
+            Log.i(TAG, "MediaCodec started")
         } catch (e: IllegalArgumentException) {
             Log.e(TAG, "Failed to start MediaCodec", e)
         } catch (e: IllegalStateException) {
@@ -72,8 +77,16 @@ class VideoDecoder(private val surface: Surface) {
 
             val bufferInfo = MediaCodec.BufferInfo()
             var outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 0)
+            if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                Log.i(TAG, "Output format changed: ${codec.outputFormat}")
+            }
             while (outputBufferIndex >= 0) {
                 codec.releaseOutputBuffer(outputBufferIndex, true)
+                if (!hasRenderedFrame) {
+                    hasRenderedFrame = true
+                    Log.i(TAG, "First video frame rendered")
+                    onFirstFrameRendered()
+                }
                 outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 0)
             }
         } catch (e: IllegalStateException) {
@@ -90,6 +103,7 @@ class VideoDecoder(private val surface: Surface) {
             mediaCodec?.release()
             mediaCodec = null
             isConfigured = false
+            hasRenderedFrame = false
         } catch (e: IllegalStateException) {
             Log.e(TAG, "Failed to stop MediaCodec", e)
         }

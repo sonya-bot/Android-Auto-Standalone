@@ -2,6 +2,7 @@
 
 package com.example.androidautoselfheadunit.video
 
+import android.util.Log
 import com.example.androidautoselfheadunit.aap.AapMessage
 import com.example.androidautoselfheadunit.decoder.VideoDecoder
 
@@ -9,6 +10,8 @@ class VideoChannel(
     private val reconstructor: FragmentReconstructor,
     private val videoDecoder: VideoDecoder,
 ) {
+    private var frameCount = 0
+
     fun handleMessage(
         message: AapMessage,
         isConfig: Boolean = false,
@@ -23,6 +26,13 @@ class VideoChannel(
             // Find NAL start code.
             val startCodeOffset = findStartCode(assembled)
             if (startCodeOffset >= 0) {
+                frameCount++
+                if (isConfig || frameCount <= 3) {
+                    val nalHeaderOffset = startCodeOffset +
+                        if (assembled.getOrNull(startCodeOffset + 2) == 1.toByte()) 3 else 4
+                    val nalType = assembled.getOrNull(nalHeaderOffset)?.toInt()?.and(0x1f)
+                    Log.i("VideoChannel", "Submitting frame=$frameCount size=${assembled.size - startCodeOffset} config=$isConfig nal=$nalType")
+                }
                 videoDecoder.decode(assembled, startCodeOffset, assembled.size - startCodeOffset, isConfig)
             }
         }

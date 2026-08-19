@@ -15,6 +15,7 @@ class SocketHeadUnitConnection : HeadUnitConnection {
 
     companion object {
         private const val TIMEOUT_MS = 5000
+        private const val READ_TIMEOUT_MS = 15000
     }
 
     override suspend fun connect(
@@ -25,6 +26,8 @@ class SocketHeadUnitConnection : HeadUnitConnection {
             socket =
                 Socket().apply {
                     connect(InetSocketAddress(host, port), TIMEOUT_MS)
+                    soTimeout = READ_TIMEOUT_MS
+                    keepAlive = true
                 }
             inputStream = socket?.getInputStream()
             outputStream = socket?.getOutputStream()

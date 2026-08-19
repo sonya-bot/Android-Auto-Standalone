@@ -2,11 +2,13 @@
 
 package com.example.androidautoselfheadunit.aap
 
+import android.util.Log
 import com.example.androidautoselfheadunit.aap.protocol.Channel
 import com.example.androidautoselfheadunit.aap.protocol.proto.Common
 import com.example.androidautoselfheadunit.aap.protocol.proto.Control
 import com.example.androidautoselfheadunit.aap.protocol.proto.Input
 import com.example.androidautoselfheadunit.aap.protocol.proto.Media
+import com.example.androidautoselfheadunit.aap.protocol.proto.Sensors
 import com.example.androidautoselfheadunit.audio.AudioChannel
 import com.example.androidautoselfheadunit.video.VideoChannel
 
@@ -16,9 +18,21 @@ class AapMessageRouter(
     var videoChannel: VideoChannel?,
     var audioChannel: AudioChannel?,
 ) {
+    private companion object {
+        const val TAG = "AapMessageRouter"
+    }
+
     private val sessionIds = mutableMapOf<Int, Int>()
 
     suspend fun handleMessage(message: AapMessage) {
+        // Media data is high-frequency; keep logs useful without slowing the read loop.
+        if (message.messageType != 0 && message.messageType != 1) {
+            Log.i(
+                TAG,
+                "Received channel=${message.channelId} type=${message.messageType} " +
+                    "flags=0x${(message.flags.toInt() and 0xff).toString(16)} size=${message.payload.size}",
+            )
+        }
         if (message.messageType == Control.ControlMsgType.MESSAGE_CHANNEL_OPEN_REQUEST_VALUE) {
             val response =
                 Control.ChannelOpenResponse.newBuilder()
@@ -54,6 +68,7 @@ class AapMessageRouter(
             }
             Channel.ID_VID -> handleMediaControl(message)
             Channel.ID_AUD, Channel.ID_AU1, Channel.ID_AU2 -> handleMediaControl(message)
+            Channel.ID_SEN -> handleSensor(message)
             Channel.ID_INP -> {
                 if (message.messageType == 32770) {
                     val response =
@@ -69,6 +84,33 @@ class AapMessageRouter(
                     )
                 }
             }
+        }
+    }
+
+    private suspend fun handleSensor(message: AapMessage) {
+        if (message.messageType != Sensors.SensorsMsgType.SENSOR_STARTREQUEST_VALUE) return
+
+        val request = Sensors.SensorRequest.parseFrom(message.payload)
+        transport.sendEncrypted(
+            AapMessage(
+                message.channelId,
+                Sensors.SensorsMsgType.SENSOR_STARTRESPONSE_VALUE,
+                Sensors.SensorResponse.newBuilder()
+                    .setStatus(Common.MessageStatus.STATUS_SUCCESS)
+                    .build(),
+            ),
+        )
+
+        if (request.type == Sensors.SensorType.DRIVING_STATUS) {
+            val unrestricted =
+                Sensors.SensorBatch.newBuilder()
+                    .addDrivingStatus(
+                        Sensors.SensorBatch.DrivingStatusData.newBuilder()
+                            .setStatus(Sensors.SensorBatch.DrivingStatusData.Status.UNRESTRICTED.number),
+                    ).build()
+            transport.sendEncrypted(
+                AapMessage(message.channelId, Sensors.SensorsMsgType.SENSOR_EVENT_VALUE, unrestricted),
+            )
         }
     }
 

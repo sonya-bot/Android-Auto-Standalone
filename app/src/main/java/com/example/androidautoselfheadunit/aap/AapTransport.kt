@@ -38,8 +38,12 @@ class AapTransport(
             val flags = headerBuffer[1]
             val encLen = ((headerBuffer[2].toInt() and 0xFF) shl 8) or (headerBuffer[3].toInt() and 0xFF)
 
-            if (flags.toInt() == 9) {
+            if ((flags.toInt() and FRAME_TYPE_MASK) == FRAME_TYPE_FIRST) {
                 readExact(4) // Skip fragment total size
+            }
+
+            if (encLen <= 0 || encLen > AapFrameCodec.MAX_FRAME_PAYLOAD_SIZE) {
+                throw IOException("Invalid encrypted AAP payload length: $encLen")
             }
 
             val encryptedPayload = readExact(encLen)
@@ -47,8 +51,8 @@ class AapTransport(
 
             var messageType = 0
             val payload: ByteArray
-            val flagInt = flags.toInt()
-            val isMiddleOrLast = (flagInt == 8) || (flagInt == 10)
+            val frameType = flags.toInt() and FRAME_TYPE_MASK
+            val isMiddleOrLast = frameType == FRAME_TYPE_MIDDLE || frameType == FRAME_TYPE_LAST
 
             if (!isMiddleOrLast && decryptedPayload.size >= 2) {
                 messageType = ((decryptedPayload[0].toInt() and 0xFF) shl 8) or (decryptedPayload[1].toInt() and 0xFF)
@@ -68,17 +72,13 @@ class AapTransport(
     }
 
     private suspend fun readExact(length: Int): ByteArray {
-        val buffer = ByteArray(length)
-        var totalRead = 0
-        while (totalRead < length) {
-            val tempBuffer = ByteArray(length - totalRead)
-            val bytesRead = connection.read(tempBuffer)
-            if (bytesRead < 0) {
-                throw IOException("Connection closed during read")
-            }
-            System.arraycopy(tempBuffer, 0, buffer, totalRead, bytesRead)
-            totalRead += bytesRead
-        }
-        return buffer
+        return AapFrameCodec.readExact(connection, length)
+    }
+
+    private companion object {
+        const val FRAME_TYPE_MASK = 0x03
+        const val FRAME_TYPE_MIDDLE = 0x00
+        const val FRAME_TYPE_FIRST = 0x01
+        const val FRAME_TYPE_LAST = 0x02
     }
 }
