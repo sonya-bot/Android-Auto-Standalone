@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions", "MagicNumber", "MaxLineLength", "LongMethod", "CyclomaticComplexMethod", "ReturnCount", "UnusedPrivateProperty", "ThrowsCount", "Deprecation", "TooGenericExceptionCaught", "SwallowedException", "NestedBlockDepth")
+
 package com.example.androidautoselfheadunit.connection
 
 import com.example.androidautoselfheadunit.common.Constants

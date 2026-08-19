@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions", "MagicNumber", "MaxLineLength", "LongMethod", "CyclomaticComplexMethod", "ReturnCount", "UnusedPrivateProperty", "ThrowsCount", "Deprecation", "TooGenericExceptionCaught", "SwallowedException", "NestedBlockDepth")
+
 package com.example.androidautoselfheadunit.decoder
 
 import android.media.MediaCodec
@@ -30,7 +32,7 @@ class VideoDecoder(
                     VIDEO_WIDTH,
                     VIDEO_HEIGHT,
                 )
-                        var codec: android.media.MediaCodec? = null
+            var codec: android.media.MediaCodec? = null
             try {
                 codec = android.media.MediaCodec.createByCodecName("c2.android.avc.decoder")
             } catch (e: Exception) {

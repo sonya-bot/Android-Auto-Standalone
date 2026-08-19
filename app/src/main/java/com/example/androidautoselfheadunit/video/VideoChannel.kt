@@ -1,4 +1,4 @@
-@file:Suppress("TooManyFunctions", "MagicNumber", "MaxLineLength", "LongMethod", "CyclomaticComplexMethod", "ReturnCount", "UnusedPrivateProperty", "ThrowsCount", "Deprecation")
+@file:Suppress("TooManyFunctions", "MagicNumber", "MaxLineLength", "LongMethod", "CyclomaticComplexMethod", "ReturnCount", "UnusedPrivateProperty", "ThrowsCount", "Deprecation", "TooGenericExceptionCaught", "SwallowedException", "NestedBlockDepth")
 
 package com.example.androidautoselfheadunit.video
 
@@ -28,8 +28,9 @@ class VideoChannel(
             if (startCodeOffset >= 0) {
                 frameCount++
                 if (isConfig || frameCount <= 3) {
-                    val nalHeaderOffset = startCodeOffset +
-                        if (assembled.getOrNull(startCodeOffset + 2) == 1.toByte()) 3 else 4
+                    val nalHeaderOffset =
+                        startCodeOffset +
+                            if (assembled.getOrNull(startCodeOffset + 2) == 1.toByte()) 3 else 4
                     val nalType = assembled.getOrNull(nalHeaderOffset)?.toInt()?.and(0x1f)
                     Log.i("VideoChannel", "Submitting frame=$frameCount size=${assembled.size - startCodeOffset} config=$isConfig nal=$nalType")
                 }

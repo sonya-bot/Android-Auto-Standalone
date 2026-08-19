@@ -37,7 +37,7 @@ class ControlChannel(
                                 frameRate = Control.Service.MediaSinkService.VideoConfiguration.VideoFrameRateType._60
                                 marginHeight = 0
                                 marginWidth = 0
-                                density = 160
+                                density = 213
                                 pixelAspectRatioE4 = 10000
                                 videoCodecType = Media.MediaCodecType.MEDIA_CODEC_VIDEO_H264_BP
                             }.build(),
@@ -51,11 +51,12 @@ class ControlChannel(
                 mediaSourceService =
                     Control.Service.MediaSourceService.newBuilder().apply {
                         type = Media.MediaCodecType.MEDIA_CODEC_AUDIO_PCM
-                        audioConfig = Media.AudioConfiguration.newBuilder().apply {
-                            sampleRate = 16000
-                            numberOfBits = 16
-                            numberOfChannels = 1
-                        }.build()
+                        audioConfig =
+                            Media.AudioConfiguration.newBuilder().apply {
+                                sampleRate = 16000
+                                numberOfBits = 16
+                                numberOfChannels = 1
+                            }.build()
                         availableWhileInCall = true
                     }.build()
             }.build()

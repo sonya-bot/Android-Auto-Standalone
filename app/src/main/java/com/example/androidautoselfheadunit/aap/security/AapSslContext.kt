@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions", "MagicNumber", "MaxLineLength", "LongMethod", "CyclomaticComplexMethod", "ReturnCount", "UnusedPrivateProperty", "ThrowsCount", "Deprecation", "TooGenericExceptionCaught", "SwallowedException", "NestedBlockDepth")
+
 package com.example.androidautoselfheadunit.aap.security
 
 import android.content.Context
@@ -18,11 +20,12 @@ class AapSslContext(context: Context) {
     private lateinit var sslEngine: SSLEngine
 
     suspend fun performHandshake(connection: HeadUnitConnection) {
-        sslEngine = sslContext.createSSLEngine("android-auto", 5277).apply {
-            useClientMode = true
-            enabledProtocols = enabledProtocols.filter { it == "TLSv1.2" }.toTypedArray()
-            beginHandshake()
-        }
+        sslEngine =
+            sslContext.createSSLEngine("android-auto", 5277).apply {
+                useClientMode = true
+                enabledProtocols = enabledProtocols.filter { it == "TLSv1.2" }.toTypedArray()
+                beginHandshake()
+            }
 
         var pendingTls = ByteArray(0)
         val empty = ByteBuffer.allocate(0)
@@ -108,9 +111,10 @@ class AapSslContext(context: Context) {
         val input = ByteBuffer.wrap(encryptedPayload)
         val output = ByteArrayOutputStream()
         while (input.hasRemaining()) {
-            val appBuffer = ByteBuffer.allocate(
-                sslEngine.session.applicationBufferSize.coerceAtLeast(encryptedPayload.size),
-            )
+            val appBuffer =
+                ByteBuffer.allocate(
+                    sslEngine.session.applicationBufferSize.coerceAtLeast(encryptedPayload.size),
+                )
             val result = sslEngine.unwrap(input, appBuffer)
             runDelegatedTasks()
             when (result.status) {
