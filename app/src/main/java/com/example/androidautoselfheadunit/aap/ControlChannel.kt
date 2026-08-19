@@ -33,8 +33,8 @@ class ControlChannel(
                         availableWhileInCall = true
                         addVideoConfigs(
                             Control.Service.MediaSinkService.VideoConfiguration.newBuilder().apply {
-                                codecResolution = Control.Service.MediaSinkService.VideoConfiguration.VideoCodecResolutionType._800x480
-                                frameRate = Control.Service.MediaSinkService.VideoConfiguration.VideoFrameRateType._30
+                                codecResolution = Control.Service.MediaSinkService.VideoConfiguration.VideoCodecResolutionType._1920x1080
+                                frameRate = Control.Service.MediaSinkService.VideoConfiguration.VideoFrameRateType._60
                                 marginHeight = 0
                                 marginWidth = 0
                                 density = 160
@@ -74,8 +74,8 @@ class ControlChannel(
                     Control.Service.InputSourceService.newBuilder().apply {
                         touchscreen =
                             Control.Service.InputSourceService.TouchConfig.newBuilder().apply {
-                                width = 800
-                                height = 480
+                                width = 1920
+                                height = 1080
                             }.build()
                         addKeycodesSupported(66) // ENTER
                     }.build()

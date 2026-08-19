@@ -7,8 +7,8 @@ class TouchEventMapper(
     private val projectionHeight: Int = PROJECTION_HEIGHT,
 ) {
     companion object {
-        private const val PROJECTION_WIDTH = 800
-        private const val PROJECTION_HEIGHT = 480
+        private const val PROJECTION_WIDTH = 1920
+        private const val PROJECTION_HEIGHT = 1080
     }
 
     fun updateScreenSize(

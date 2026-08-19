@@ -44,7 +44,8 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var inputChannel: InputChannel? = null
     private var aapMessageRouter: com.example.androidautoselfheadunit.aap.AapMessageRouter? = null
     private var videoChannel: VideoChannel? = null
-    private var audioChannel: AudioChannel? = null
+    private var mediaAudioChannel: AudioChannel? = null
+    private var sysAudioChannel: AudioChannel? = null
     private lateinit var statusView: TextView
     private val uiScope = CoroutineScope(Dispatchers.Main)
 
@@ -122,7 +123,8 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
                                     t,
                                     controlChannel,
                                     videoChannel,
-                                    audioChannel,
+                                    mediaAudioChannel,
+                                    sysAudioChannel,
                                 )
                             startMessageLoop(t, aapMessageRouter!!)
                         }
@@ -198,16 +200,15 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         videoDecoder = decoder
         videoChannel = VideoChannel(FragmentReconstructor(), decoder)
 
-        val audioTrackWrapper =
-            AudioTrackWrapper(
-                AUDIO_SAMPLE_RATE,
-                android.media.AudioFormat.CHANNEL_OUT_STEREO,
-                android.media.AudioFormat.ENCODING_PCM_16BIT,
-            )
-        audioTrackWrapper.start()
-        audioChannel = AudioChannel(audioTrackWrapper)
+        val mediaAudioWrapper = AudioTrackWrapper(48000, android.media.AudioFormat.CHANNEL_OUT_STEREO, android.media.AudioFormat.ENCODING_PCM_16BIT)
+        val sysAudioWrapper = AudioTrackWrapper(16000, android.media.AudioFormat.CHANNEL_OUT_MONO, android.media.AudioFormat.ENCODING_PCM_16BIT)
+        mediaAudioWrapper.start()
+        sysAudioWrapper.start()
+        mediaAudioChannel = AudioChannel(mediaAudioWrapper)
+        sysAudioChannel = AudioChannel(sysAudioWrapper)
         aapMessageRouter?.videoChannel = videoChannel
-        aapMessageRouter?.audioChannel = audioChannel
+        aapMessageRouter?.mediaAudioChannel = mediaAudioChannel
+        aapMessageRouter?.sysAudioChannel = sysAudioChannel
     }
 
     override fun surfaceChanged(
@@ -224,9 +225,12 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         videoDecoder = null
         videoChannel = null
 
-        audioChannel?.stop()
-        audioChannel = null
+        mediaAudioChannel?.stop()
+        sysAudioChannel?.stop()
+        mediaAudioChannel = null
+        sysAudioChannel = null
         aapMessageRouter?.videoChannel = null
-        aapMessageRouter?.audioChannel = null
+        aapMessageRouter?.mediaAudioChannel = null
+        aapMessageRouter?.sysAudioChannel = null
     }
 }

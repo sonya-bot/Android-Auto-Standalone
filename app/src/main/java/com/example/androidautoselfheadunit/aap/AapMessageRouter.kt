@@ -16,7 +16,8 @@ class AapMessageRouter(
     private val transport: AapTransport,
     private val controlChannel: ControlChannel,
     var videoChannel: VideoChannel?,
-    var audioChannel: AudioChannel?,
+    var mediaAudioChannel: AudioChannel?,
+    var sysAudioChannel: AudioChannel?,
 ) {
     private companion object {
         const val TAG = "AapMessageRouter"
@@ -196,7 +197,11 @@ class AapMessageRouter(
                         sendMediaAck(message.channelId)
                     }
                 } else if (message.channelId == Channel.ID_AUD || message.channelId == Channel.ID_AU1 || message.channelId == Channel.ID_AU2) {
-                    audioChannel?.handleMessage(message)
+                    if (message.channelId == Channel.ID_AUD) {
+                        mediaAudioChannel?.handleMessage(message)
+                    } else if (message.channelId == Channel.ID_AU2 || message.channelId == Channel.ID_AU1) {
+                        sysAudioChannel?.handleMessage(message)
+                    }
                     if (isFirstOrSingle && isMediaDataOrConfig) {
                         sendMediaAck(message.channelId)
                     }

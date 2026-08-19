@@ -12,8 +12,8 @@ class VideoDecoder(
 ) {
     companion object {
         private const val TAG = "VideoDecoder"
-        private const val VIDEO_WIDTH = 800
-        private const val VIDEO_HEIGHT = 480
+        private const val VIDEO_WIDTH = 1920
+        private const val VIDEO_HEIGHT = 1080
         private const val TIMEOUT_US = 10000L
     }
 
