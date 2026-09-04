@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!--
+        Android Auto's receiver protocol requires the published Google Automotive Link
+        reference certificate/key pair for mutual TLS. This is interoperability material,
+        not an application signing key or a deployer-specific secret.
+    -->
+    <issue id="PackagedPrivateKey">
+        <ignore path="src/main/res/raw/privkey" />
+    </issue>
+</lint>

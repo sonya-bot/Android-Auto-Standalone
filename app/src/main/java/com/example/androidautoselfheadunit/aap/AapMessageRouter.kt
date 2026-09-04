@@ -16,13 +16,9 @@ class AapMessageRouter(
     private val transport: AapTransport,
     private val controlChannel: ControlChannel,
     var videoChannel: VideoChannel?,
-    var mediaAudioChannel: AudioChannel?,
-    var sysAudioChannel: AudioChannel?,
+    private val audioChannels: Map<Int, AudioChannel>,
+    private val onPeerDisconnect: suspend () -> Unit = {},
 ) {
-    private companion object {
-        const val TAG = "AapMessageRouter"
-    }
-
     private val sessionIds = mutableMapOf<Int, Int>()
 
     suspend fun handleMessage(message: AapMessage) {
@@ -35,9 +31,17 @@ class AapMessageRouter(
             )
         }
         if (message.messageType == Control.ControlMsgType.MESSAGE_CHANNEL_OPEN_REQUEST_VALUE) {
+            val request = Control.ChannelOpenRequest.parseFrom(message.payload)
+            val isSupported = request.serviceId in SUPPORTED_SERVICE_IDS && request.serviceId == message.channelId
             val response =
                 Control.ChannelOpenResponse.newBuilder()
-                    .setStatus(Common.MessageStatus.STATUS_SUCCESS)
+                    .setStatus(
+                        if (isSupported) {
+                            Common.MessageStatus.STATUS_SUCCESS
+                        } else {
+                            Common.MessageStatus.STATUS_INVALID_SERVICE
+                        },
+                    )
                     .build()
             transport.sendEncrypted(
                 AapMessage(
@@ -54,9 +58,10 @@ class AapMessageRouter(
                 if (message.messageType == Control.ControlMsgType.MESSAGE_SERVICE_DISCOVERY_REQUEST_VALUE) {
                     controlChannel.handleServiceDiscoveryRequest()
                 } else if (message.messageType == Control.ControlMsgType.MESSAGE_PING_REQUEST_VALUE) {
+                    val request = Control.PingRequest.parseFrom(message.payload)
                     val pingResponse =
                         Control.PingResponse.newBuilder()
-                            .setTimestamp(System.nanoTime())
+                            .setTimestamp(request.timestamp)
                             .build()
                     transport.sendEncrypted(
                         AapMessage(
@@ -67,11 +72,30 @@ class AapMessageRouter(
                     )
                 } else if (message.messageType == Control.ControlMsgType.MESSAGE_AUDIO_FOCUS_REQUEST_VALUE) {
                     handleAudioFocusRequest(message)
+                } else if (message.messageType == Control.ControlMsgType.MESSAGE_NAV_FOCUS_REQUEST_VALUE) {
+                    val request = Control.NavFocusRequestNotification.parseFrom(message.payload)
+                    val response = Control.NavFocusNotification.newBuilder().setFocusType(request.focusType).build()
+                    transport.sendEncrypted(
+                        AapMessage(message.channelId, Control.ControlMsgType.MESSAGE_NAV_FOCUS_NOTIFICATION_VALUE, response),
+                    )
+                } else if (message.messageType == Control.ControlMsgType.MESSAGE_BYEBYE_REQUEST_VALUE) {
+                    transport.sendEncrypted(
+                        AapMessage(
+                            message.channelId,
+                            Control.ControlMsgType.MESSAGE_BYEBYE_RESPONSE_VALUE,
+                            Control.ByeByeResponse.getDefaultInstance(),
+                        ),
+                    )
+                    onPeerDisconnect()
+                } else if (message.messageType == Control.ControlMsgType.MESSAGE_CHANNEL_CLOSE_NOTIFICATION_VALUE) {
+                    sessionIds.remove(message.channelId)
                 }
             }
             Channel.ID_VID -> handleMediaControl(message)
             Channel.ID_AUD, Channel.ID_AU1, Channel.ID_AU2 -> handleMediaControl(message)
             Channel.ID_SEN -> handleSensor(message)
+            Channel.ID_MIC -> handleMicrophone(message)
+            Channel.ID_MPB -> Unit
             Channel.ID_INP -> {
                 if (message.messageType == 32770) {
                     val response =
@@ -104,17 +128,41 @@ class AapMessageRouter(
             ),
         )
 
-        if (request.type == Sensors.SensorType.DRIVING_STATUS) {
-            val unrestricted =
-                Sensors.SensorBatch.newBuilder()
-                    .addDrivingStatus(
-                        Sensors.SensorBatch.DrivingStatusData.newBuilder()
-                            .setStatus(Sensors.SensorBatch.DrivingStatusData.Status.UNRESTRICTED.number),
-                    ).build()
+        val batch =
+            when (request.type) {
+                Sensors.SensorType.DRIVING_STATUS ->
+                    Sensors.SensorBatch.newBuilder()
+                        .addDrivingStatus(
+                            Sensors.SensorBatch.DrivingStatusData.newBuilder()
+                                .setStatus(Sensors.SensorBatch.DrivingStatusData.Status.UNRESTRICTED.number),
+                        ).build()
+                Sensors.SensorType.NIGHT ->
+                    Sensors.SensorBatch.newBuilder()
+                        .addNightMode(
+                            Sensors.SensorBatch.NightData.newBuilder().setIsNightMode(false),
+                        ).build()
+                else -> null
+            }
+        if (batch != null) {
             transport.sendEncrypted(
-                AapMessage(message.channelId, Sensors.SensorsMsgType.SENSOR_EVENT_VALUE, unrestricted),
+                AapMessage(message.channelId, Sensors.SensorsMsgType.SENSOR_EVENT_VALUE, batch),
             )
         }
+    }
+
+    private suspend fun handleMicrophone(message: AapMessage) {
+        if (message.messageType != Media.MediaMsgType.MEDIA_MESSAGE_MICROPHONE_REQUEST_VALUE) return
+        val request = Media.MicrophoneRequest.parseFrom(message.payload)
+        val status =
+            if (request.open) {
+                Common.MessageStatus.STATUS_COMMAND_NOT_SUPPORTED_VALUE
+            } else {
+                Common.MessageStatus.STATUS_SUCCESS_VALUE
+            }
+        val response = Media.MicrophoneResponse.newBuilder().setStatus(status).setSessionId(0).build()
+        transport.sendEncrypted(
+            AapMessage(message.channelId, Media.MediaMsgType.MEDIA_MESSAGE_MICROPHONE_RESPONSE_VALUE, response),
+        )
     }
 
     private suspend fun sendMediaAck(channelId: Int) {
@@ -191,28 +239,51 @@ class AapMessageRouter(
                 val startRequest = Media.Start.parseFrom(message.payload)
                 sessionIds[message.channelId] = startRequest.sessionId
             }
-            32770, 32772, 32775 -> {}
+            32770 -> {
+                sessionIds.remove(message.channelId)
+                if (message.channelId == Channel.ID_VID) videoChannel?.stopStream()
+            }
+            32772 -> Unit
+            32775 -> {
+                if (message.channelId == Channel.ID_VID) {
+                    val request = Media.VideoFocusRequestNotification.parseFrom(message.payload)
+                    val response =
+                        Media.VideoFocusNotification.newBuilder()
+                            .setMode(request.mode)
+                            .setUnsolicited(false)
+                            .build()
+                    transport.sendEncrypted(AapMessage(Channel.ID_VID, 32776, response))
+                }
+            }
             else -> {
-                val flagInt = message.flags.toInt()
-                val isFirstOrSingle = flagInt == 9 || flagInt == 11
                 val isMediaDataOrConfig = message.messageType == 0 || message.messageType == 1
 
                 if (message.channelId == Channel.ID_VID) {
-                    videoChannel?.handleMessage(message, isConfig = message.messageType == 1)
-                    if (isFirstOrSingle && isMediaDataOrConfig) {
+                    val accepted = videoChannel?.handleMessage(message, isConfig = message.messageType == 1) == true
+                    if (accepted && isMediaDataOrConfig) {
                         sendMediaAck(message.channelId)
                     }
                 } else if (message.channelId == Channel.ID_AUD || message.channelId == Channel.ID_AU1 || message.channelId == Channel.ID_AU2) {
-                    if (message.channelId == Channel.ID_AUD) {
-                        mediaAudioChannel?.handleMessage(message)
-                    } else if (message.channelId == Channel.ID_AU2 || message.channelId == Channel.ID_AU1) {
-                        sysAudioChannel?.handleMessage(message)
-                    }
-                    if (isFirstOrSingle && isMediaDataOrConfig) {
+                    audioChannels[message.channelId]?.handleMessage(message)
+                    if (isMediaDataOrConfig) {
                         sendMediaAck(message.channelId)
                     }
                 }
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "AapMessageRouter"
+        val SUPPORTED_SERVICE_IDS =
+            setOf(
+                Channel.ID_SEN,
+                Channel.ID_VID,
+                Channel.ID_INP,
+                Channel.ID_AUD,
+                Channel.ID_AU2,
+                Channel.ID_MIC,
+                Channel.ID_MPB,
+            )
     }
 }

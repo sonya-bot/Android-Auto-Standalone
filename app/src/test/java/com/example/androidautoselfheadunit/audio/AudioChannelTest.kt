@@ -4,6 +4,8 @@ import com.example.androidautoselfheadunit.aap.AapMessage
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class AudioChannelTest {
     // A dummy wrapper for testing without mockito
@@ -12,6 +14,7 @@ class AudioChannelTest {
         var writtenOffset: Int = -1
         var writtenLength: Int = -1
         var stopped = false
+        val writeLatch = CountDownLatch(1)
 
         override fun start() {
             // Do nothing to avoid Android SDK crash
@@ -25,6 +28,7 @@ class AudioChannelTest {
             writtenData = data
             writtenOffset = offset
             writtenLength = length
+            writeLatch.countDown()
         }
 
         override fun stop() {
@@ -42,9 +46,11 @@ class AudioChannelTest {
 
         channel.handleMessage(message)
 
-        assertEquals(8, wrapper.writtenOffset)
+        wrapper.writeLatch.await(1, TimeUnit.SECONDS)
+        assertEquals(0, wrapper.writtenOffset)
         assertEquals(12, wrapper.writtenLength)
-        assertArrayEquals(payload, wrapper.writtenData)
+        assertArrayEquals(payload.copyOfRange(8, payload.size), wrapper.writtenData)
+        channel.stop()
     }
 
     @Test

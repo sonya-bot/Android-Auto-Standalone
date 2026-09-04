@@ -4,6 +4,7 @@ package com.example.androidautoselfheadunit.aap
 
 import com.example.androidautoselfheadunit.aap.protocol.AudioConfigs
 import com.example.androidautoselfheadunit.aap.protocol.Channel
+import com.example.androidautoselfheadunit.aap.protocol.ProjectionDisplayProfile
 import com.example.androidautoselfheadunit.aap.protocol.proto.Common
 import com.example.androidautoselfheadunit.aap.protocol.proto.Control
 import com.example.androidautoselfheadunit.aap.protocol.proto.Media
@@ -11,6 +12,7 @@ import com.example.androidautoselfheadunit.aap.protocol.proto.Sensors
 
 class ControlChannel(
     private val transport: AapTransport,
+    private val displayProfile: ProjectionDisplayProfile,
 ) {
     suspend fun handleServiceDiscoveryRequest() {
         val sensorService =
@@ -35,10 +37,10 @@ class ControlChannel(
                             Control.Service.MediaSinkService.VideoConfiguration.newBuilder().apply {
                                 codecResolution = Control.Service.MediaSinkService.VideoConfiguration.VideoCodecResolutionType._1920x1080
                                 frameRate = Control.Service.MediaSinkService.VideoConfiguration.VideoFrameRateType._60
-                                marginHeight = 0
-                                marginWidth = 0
-                                density = 213
-                                pixelAspectRatioE4 = 10000
+                                marginHeight = displayProfile.marginHeightPx
+                                marginWidth = displayProfile.marginWidthPx
+                                density = displayProfile.densityDpi
+                                pixelAspectRatioE4 = displayProfile.pixelAspectRatioE4
                                 videoCodecType = Media.MediaCodecType.MEDIA_CODEC_VIDEO_H264_BP
                             }.build(),
                         )
@@ -75,8 +77,8 @@ class ControlChannel(
                     Control.Service.InputSourceService.newBuilder().apply {
                         touchscreen =
                             Control.Service.InputSourceService.TouchConfig.newBuilder().apply {
-                                width = 1920
-                                height = 1080
+                                width = displayProfile.contentWidthPx
+                                height = displayProfile.contentHeightPx
                             }.build()
                         addKeycodesSupported(66) // ENTER
                     }.build()

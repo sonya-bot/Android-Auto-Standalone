@@ -12,50 +12,52 @@ class FragmentReconstructor {
     }
 
     private var buffer = ByteBuffer.allocate(MAX_BUFFER_SIZE)
-    private var isCorrupt = false
+    private var isAssembling = false
 
     fun processFragment(
         flags: Int,
         data: ByteArray,
     ): ByteArray? {
         var result: ByteArray? = null
-        when (flags) {
-            FLAG_SINGLE -> {
-                isCorrupt = false
+        when (flags and 0x03) {
+            0x03 -> {
+                isAssembling = false
                 buffer.clear()
                 result = data
             }
-            FLAG_FIRST -> {
-                isCorrupt = false
+            0x01 -> {
+                isAssembling = true
                 buffer.clear()
-                buffer.put(data)
+                if (!append(data)) isAssembling = false
             }
-            FLAG_MIDDLE -> {
-                if (!isCorrupt) {
-                    if (buffer.position() + data.size > buffer.capacity()) {
-                        isCorrupt = true
-                        buffer.clear()
-                    } else {
-                        buffer.put(data)
-                    }
-                }
+            0x00 -> {
+                if (isAssembling && !append(data)) isAssembling = false
             }
-            FLAG_LAST -> {
-                if (!isCorrupt) {
-                    if (buffer.position() + data.size > buffer.capacity()) {
-                        isCorrupt = true
-                        buffer.clear()
-                    } else {
-                        buffer.put(data)
-                        buffer.flip()
-                        val assembled = ByteArray(buffer.limit())
-                        buffer.get(assembled)
-                        buffer.clear()
-                        result = assembled
-                    }
+            0x02 -> {
+                if (isAssembling && append(data)) {
+                    buffer.flip()
+                    val assembled = ByteArray(buffer.limit())
+                    buffer.get(assembled)
+                    result = assembled
                 }
+                buffer.clear()
+                isAssembling = false
             }
         }
         return result
+    }
+
+    fun reset() {
+        buffer.clear()
+        isAssembling = false
+    }
+
+    private fun append(data: ByteArray): Boolean {
+        if (buffer.position() + data.size > buffer.capacity()) {
+            buffer.clear()
+            return false
+        }
+        buffer.put(data)
+        return true
     }
 }

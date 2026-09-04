@@ -133,4 +133,20 @@ class ConnectionManagerTest {
             assertEquals(ConnectionState.Disconnected, manager.connectionState.value)
             assertTrue(!fakeConnection.isConnected)
         }
+
+    @Test
+    fun `reportFailure closes connection and permits retry`() =
+        runTest {
+            val fakeConnection = FakeHeadUnitConnection()
+            val manager = ConnectionManager(fakeConnection) { }
+            manager.startConnection()
+
+            manager.reportFailure(IOException("peer closed"))
+            assertTrue(manager.connectionState.value is ConnectionState.Error)
+            assertTrue(!fakeConnection.isConnected)
+
+            manager.startConnection()
+            assertEquals(ConnectionState.Connected, manager.connectionState.value)
+            assertTrue(fakeConnection.isConnected)
+        }
 }

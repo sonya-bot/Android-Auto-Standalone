@@ -15,7 +15,7 @@ class SocketHeadUnitConnection : HeadUnitConnection {
 
     companion object {
         private const val TIMEOUT_MS = 5000
-        private const val READ_TIMEOUT_MS = 15000
+        private const val READ_TIMEOUT_MS = 0
     }
 
     override suspend fun connect(

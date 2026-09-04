@@ -1,33 +1,43 @@
 package com.example.androidautoselfheadunit.input
 
 class TouchEventMapper(
-    private var screenWidth: Int = 0,
-    private var screenHeight: Int = 0,
-    private val projectionWidth: Int = PROJECTION_WIDTH,
-    private val projectionHeight: Int = PROJECTION_HEIGHT,
+    private val projectionWidth: Int,
+    private val projectionHeight: Int,
+    private var viewportWidth: Int = 0,
+    private var viewportHeight: Int = 0,
+    private var surfaceLeft: Int = 0,
+    private var surfaceTop: Int = 0,
 ) {
-    companion object {
-        private const val PROJECTION_WIDTH = 1920
-        private const val PROJECTION_HEIGHT = 1080
+    fun updateGeometry(
+        viewportWidth: Int,
+        viewportHeight: Int,
+        surfaceLeft: Int = 0,
+        surfaceTop: Int = 0,
+    ) {
+        this.viewportWidth = viewportWidth
+        this.viewportHeight = viewportHeight
+        this.surfaceLeft = surfaceLeft
+        this.surfaceTop = surfaceTop
     }
 
     fun updateScreenSize(
         width: Int,
         height: Int,
     ) {
-        screenWidth = width
-        screenHeight = height
+        updateGeometry(width, height, 0, 0)
     }
 
     fun mapX(x: Float): Int {
-        if (screenWidth == 0) return 0
-        val ratio = projectionWidth.toFloat() / screenWidth
-        return (x * ratio).toInt().coerceIn(0, projectionWidth)
+        if (viewportWidth <= 0) return 0
+        val viewportX = x + surfaceLeft
+        val ratio = projectionWidth.toFloat() / viewportWidth
+        return (viewportX * ratio).toInt().coerceIn(0, (projectionWidth - 1).coerceAtLeast(0))
     }
 
     fun mapY(y: Float): Int {
-        if (screenHeight == 0) return 0
-        val ratio = projectionHeight.toFloat() / screenHeight
-        return (y * ratio).toInt().coerceIn(0, projectionHeight)
+        if (viewportHeight <= 0) return 0
+        val viewportY = y + surfaceTop
+        val ratio = projectionHeight.toFloat() / viewportHeight
+        return (viewportY * ratio).toInt().coerceIn(0, (projectionHeight - 1).coerceAtLeast(0))
     }
 }

@@ -5,6 +5,8 @@ package com.example.androidautoselfheadunit.aap
 import com.example.androidautoselfheadunit.aap.security.AapSslContext
 import com.example.androidautoselfheadunit.connection.HeadUnitConnection
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.nio.ByteBuffer
@@ -13,21 +15,25 @@ class AapTransport(
     private val connection: HeadUnitConnection,
     private val sslContext: AapSslContext,
 ) {
-    suspend fun sendEncrypted(message: AapMessage) {
-        withContext(Dispatchers.IO) {
-            val payloadWithType = ByteArray(message.payload.size + 2)
-            payloadWithType[0] = (message.messageType shr 8).toByte()
-            payloadWithType[1] = (message.messageType and 0xFF).toByte()
-            System.arraycopy(message.payload, 0, payloadWithType, 2, message.payload.size)
+    private val sendMutex = Mutex()
 
-            val encryptedPayload = sslContext.encrypt(payloadWithType)
-            val out = ByteBuffer.allocate(AapMessage.HEADER_SIZE + encryptedPayload.size)
-            out.put(message.channelId.toByte())
-            out.put(message.flags)
-            out.put((encryptedPayload.size shr 8).toByte())
-            out.put((encryptedPayload.size and 0xFF).toByte())
-            out.put(encryptedPayload)
-            connection.write(out.array())
+    suspend fun sendEncrypted(message: AapMessage) {
+        sendMutex.withLock {
+            withContext(Dispatchers.IO) {
+                val payloadWithType = ByteArray(message.payload.size + 2)
+                payloadWithType[0] = (message.messageType shr 8).toByte()
+                payloadWithType[1] = (message.messageType and 0xFF).toByte()
+                System.arraycopy(message.payload, 0, payloadWithType, 2, message.payload.size)
+
+                val encryptedPayload = sslContext.encrypt(payloadWithType)
+                val out = ByteBuffer.allocate(AapMessage.HEADER_SIZE + encryptedPayload.size)
+                out.put(message.channelId.toByte())
+                out.put(message.flags)
+                out.put((encryptedPayload.size shr 8).toByte())
+                out.put((encryptedPayload.size and 0xFF).toByte())
+                out.put(encryptedPayload)
+                connection.write(out.array())
+            }
         }
     }
 

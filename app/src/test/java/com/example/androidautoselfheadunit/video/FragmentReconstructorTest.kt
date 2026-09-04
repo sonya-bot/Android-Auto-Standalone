@@ -41,4 +41,12 @@ class FragmentReconstructorTest {
 
         assertArrayEquals(byteArrayOf(2, 3, 4), result)
     }
+
+    @Test
+    fun `processFragment ignores middle and last without first`() {
+        val reconstructor = FragmentReconstructor()
+
+        assertNull(reconstructor.processFragment(8, byteArrayOf(1, 2)))
+        assertNull(reconstructor.processFragment(10, byteArrayOf(3, 4)))
+    }
 }
