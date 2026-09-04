@@ -1,6 +1,6 @@
-# Android Auto Self Head Unit - 設計・実装・修正計画ドキュメント一覧
+# Android Auto Standalone - 設計・実装・修正計画ドキュメント一覧
 
-本ディレクトリには、Android Auto Self Head Unit アプリケーションの開発初期から現在に至るまでの各フェーズの実装計画および不具合修正計画書が時系列順に個別保存されています。
+本ディレクトリには、Android Auto Standalone アプリケーションの開発初期から現在に至るまでの各フェーズの実装計画および不具合修正計画書が時系列順に個別保存されています。
 
 ---
 
