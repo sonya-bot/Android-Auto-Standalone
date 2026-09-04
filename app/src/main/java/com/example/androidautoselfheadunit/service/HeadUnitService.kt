@@ -227,6 +227,7 @@ class HeadUnitService : Service() {
                 } else {
                     AudioAttributes.CONTENT_TYPE_SPEECH
                 },
+                this,
             ),
         )
 

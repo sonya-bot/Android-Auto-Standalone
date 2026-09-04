@@ -50,6 +50,6 @@ class AudioChannel(
     fun stop() {
         audioQueue.close()
         scope.cancel()
-        audioTrackWrapper.stop()
+        audioTrackWrapper.release()
     }
 }
