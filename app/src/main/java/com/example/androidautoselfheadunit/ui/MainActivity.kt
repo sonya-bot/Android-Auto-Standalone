@@ -42,7 +42,7 @@ import android.view.View
 class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     companion object {
         private const val TAG = "MainActivity"
-        private const val MAX_AUTOSTART_RETRIES = 5
+        private const val MAX_AUTOSTART_RETRIES = 10
         private const val RETRY_DELAY_MS = 1000L
         private const val SPLASH_FADE_DURATION_MS = 400L
         private const val VIDEO_WIDTH = 1280
@@ -265,6 +265,15 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
 
         if (com.example.androidautoselfheadunit.service.AutoStartAccessibilityService.isServiceEnabled(this)) {
+            if (!com.example.androidautoselfheadunit.service.AutoStartAccessibilityService.hasInstance() && retryCount < 3) {
+                retryCount++
+                Log.i(TAG, "Accessibility service enabled but not yet connected, waiting (attempt $retryCount/3)...")
+                lifecycleScope.launch {
+                    delay(500L)
+                    handleConnectionError()
+                }
+                return
+            }
             Log.i(TAG, "Accessibility service is enabled. Arming and opening Android Auto settings to auto-start server.")
             isAutoStarting = true
             retryCount = 0
@@ -304,10 +313,11 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        Log.i(TAG, "onNewIntent received, delaying and retrying connection")
+        Log.i(TAG, "onNewIntent received, resetting retry budget and retrying connection")
         activeDialog?.dismiss()
         activeDialog = null
         errorDialogVisible = false
+        retryCount = 0
         statusView.visibility = android.view.View.VISIBLE
         statusView.text = getString(com.example.androidautoselfheadunit.R.string.status_connecting)
         lifecycleScope.launch {
@@ -334,6 +344,15 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         splashMediaPlayer = null
         splashTextureView = null
         splashVideoContainer = null
+        if (serviceBound) {
+            try {
+                unbindService(serviceConnection)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to unbind service", e)
+            }
+            serviceBound = false
+            serviceBinder = null
+        }
         if (isFinishing && !isStoppingServer) {
             com.example.androidautoselfheadunit.service.AutoStartAccessibilityService.stopServerAutomatically()
         }

@@ -46,6 +46,7 @@ class AutoStartAccessibilityService : AccessibilityService() {
             if (service != null) {
                 Log.i(TAG, "stopServerAutomatically initiated from service instance")
                 armAutoStop(onComplete)
+                service.scheduleStopTimeout(4000L)
                 try {
                     val intent = Intent("com.google.android.projection.gearhead.SETTINGS").apply {
                         setPackage("com.google.android.projection.gearhead")
@@ -54,6 +55,8 @@ class AutoStartAccessibilityService : AccessibilityService() {
                     service.startActivity(intent)
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to launch gearhead settings from accessibility service", e)
+                    service.cancelStopTimeout()
+                    disarmAutoStart()
                     onComplete?.invoke()
                 }
             } else {
@@ -63,6 +66,7 @@ class AutoStartAccessibilityService : AccessibilityService() {
         }
 
         fun disarmAutoStart() {
+            instance?.cancelStopTimeout()
             currentMode.set(Mode.IDLE)
             onStopCallback = null
         }
@@ -109,6 +113,24 @@ class AutoStartAccessibilityService : AccessibilityService() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var menuOpened = false
+    private var stopTimeoutRunnable: Runnable? = null
+
+    private fun scheduleStopTimeout(delayMs: Long) {
+        cancelStopTimeout()
+        val r = Runnable {
+            Log.w(TAG, "Stop server operation timed out after ${delayMs}ms. Invoking callback.")
+            val cb = onStopCallback
+            disarmAutoStart()
+            cb?.invoke()
+        }
+        stopTimeoutRunnable = r
+        mainHandler.postDelayed(r, delayMs)
+    }
+
+    private fun cancelStopTimeout() {
+        stopTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+        stopTimeoutRunnable = null
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -117,6 +139,7 @@ class AutoStartAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        cancelStopTimeout()
         instance = null
         super.onDestroy()
     }
@@ -300,6 +323,7 @@ class AutoStartAccessibilityService : AccessibilityService() {
 
     private fun onServerStoppedSuccess() {
         Log.i(TAG, "Head Unit Server stopped successfully, returning to Home")
+        cancelStopTimeout()
         currentMode.set(Mode.IDLE)
         menuOpened = false
 

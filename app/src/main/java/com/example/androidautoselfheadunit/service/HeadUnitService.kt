@@ -2,13 +2,18 @@
 
 package com.example.androidautoselfheadunit.service
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.os.Binder
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import android.view.MotionEvent
 import android.view.Surface
 import com.example.androidautoselfheadunit.aap.AapMessageRouter
@@ -248,18 +253,70 @@ class HeadUnitService : Service() {
         sysAudioChannel = null
     }
 
+    override fun onCreate() {
+        super.onCreate()
+        startAsForeground()
+    }
+
+    private fun startAsForeground() {
+        try {
+            val channelId = "headunit_service_channel"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    channelId,
+                    "Android Auto Head Unit",
+                    NotificationManager.IMPORTANCE_LOW,
+                ).apply {
+                    description = "Android Auto Head Unit background projection service"
+                    setShowBadge(false)
+                }
+                val manager = getSystemService(NotificationManager::class.java)
+                manager?.createNotificationChannel(channel)
+            }
+
+            val notification = NotificationCompat.Builder(this, channelId)
+                .setSmallIcon(com.example.androidautoselfheadunit.R.drawable.ic_launcher)
+                .setContentTitle(getString(com.example.androidautoselfheadunit.R.string.app_name))
+                .setContentText("Head Unit is active")
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .build()
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            Log.i(TAG, "HeadUnitService running in foreground")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to start HeadUnitService in foreground", e)
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        return START_NOT_STICKY
+        startAsForeground()
+        return START_STICKY
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
         Log.i(TAG, "onTaskRemoved: Task cleared by user from Recents. Auto-stopping server.")
-        AutoStartAccessibilityService.stopServerAutomatically()
-        stopSelf()
+        AutoStartAccessibilityService.stopServerAutomatically {
+            Log.i(TAG, "onTaskRemoved: Auto-stop completed, stopping HeadUnitService")
+            stopSelf()
+        }
     }
 
     override fun onDestroy() {
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to stop foreground notification", e)
+        }
         detachSurface()
         teardownProtocolSession()
         stateCollectionJob?.cancel()
@@ -270,6 +327,7 @@ class HeadUnitService : Service() {
 
     private companion object {
         const val TAG = "HeadUnitService"
+        const val NOTIFICATION_ID = 1001
         const val MEDIA_SAMPLE_RATE = 48000
         const val SPEECH_SAMPLE_RATE = 16000
     }

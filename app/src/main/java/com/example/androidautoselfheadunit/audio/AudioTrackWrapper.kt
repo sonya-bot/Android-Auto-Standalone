@@ -14,7 +14,10 @@ import android.media.AudioManager
 import android.media.AudioRouting
 import android.media.AudioTrack
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import kotlin.math.roundToInt
 
 open class AudioTrackWrapper(
     private val sampleRate: Int,
@@ -27,18 +30,30 @@ open class AudioTrackWrapper(
     private var audioTrack: AudioTrack? = null
     private val audioManager = context?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
     private var isCallbacksRegistered = false
+    private val mainHandler: Handler? by lazy {
+        try {
+            Handler(Looper.getMainLooper())
+        } catch (_: Exception) {
+            null
+        }
+    }
+    private var currentTargetDeviceId: Int? = null
+
+    private val routingChangeRunnable = Runnable {
+        applyDeviceRouting()
+    }
 
     private val audioDeviceCallback =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             object : AudioDeviceCallback() {
                 override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
                     Log.i(TAG, "Audio devices added: ${addedDevices?.joinToString { "${it.productName}(type=${it.type})" }}")
-                    handleDeviceRoutingChange()
+                    scheduleDeviceRoutingChange()
                 }
 
                 override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
                     Log.i(TAG, "Audio devices removed: ${removedDevices?.joinToString { "${it.productName}(type=${it.type})" }}")
-                    handleDeviceRoutingChange()
+                    scheduleDeviceRoutingChange()
                 }
             }
         } else {
@@ -51,10 +66,15 @@ open class AudioTrackWrapper(
                 if (intent?.action == Intent.ACTION_HEADSET_PLUG) {
                     val state = intent.getIntExtra("state", -1)
                     Log.i(TAG, "ACTION_HEADSET_PLUG received: state=$state")
-                    handleDeviceRoutingChange()
+                    scheduleDeviceRoutingChange()
                 }
             }
         }
+
+    private fun scheduleDeviceRoutingChange() {
+        mainHandler?.removeCallbacks(routingChangeRunnable)
+        mainHandler?.postDelayed(routingChangeRunnable, DEBOUNCE_DELAY_MS)
+    }
 
     private fun registerCallbacks() {
         if (isCallbacksRegistered || context == null) return
@@ -71,6 +91,7 @@ open class AudioTrackWrapper(
     }
 
     private fun unregisterCallbacks() {
+        mainHandler?.removeCallbacks(routingChangeRunnable)
         if (!isCallbacksRegistered || context == null) return
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && audioDeviceCallback != null) {
@@ -123,16 +144,47 @@ open class AudioTrackWrapper(
     }
 
     @Synchronized
-    private fun handleDeviceRoutingChange() {
+    private fun applyDeviceRouting() {
+        val track = audioTrack ?: return
         val target = findBestOutputDevice()
-        Log.i(TAG, "Device routing changed. Target device: ${target?.productName} (type=${target?.type})")
-        if (audioTrack != null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && target != null) {
-                audioTrack?.setPreferredDevice(target)
+        val targetId = target?.id
+        if (targetId == currentTargetDeviceId && track.state == AudioTrack.STATE_INITIALIZED) {
+            Log.i(TAG, "Device routing unchanged (id=$targetId, name=${target?.productName}). Ignoring.")
+            return
+        }
+        currentTargetDeviceId = targetId
+        Log.i(TAG, "Applying new device routing: ${target?.productName} (type=${target?.type}, id=$targetId)")
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val ok = track.setPreferredDevice(target)
+            Log.i(TAG, "setPreferredDevice(${target?.productName}) result: $ok")
+            if (!ok && target != null) {
+                Log.w(TAG, "setPreferredDevice returned false, recreating AudioTrack")
+                stop()
+                start()
+                return
             }
-            // Re-creating AudioTrack ensures Android HAL migrates immediately from speaker to wired/USB DAC
-            stop()
-            start()
+        }
+        ensureAudibleVolume(target)
+    }
+
+    private fun ensureAudibleVolume(device: AudioDeviceInfo?) {
+        val am = audioManager ?: return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && am.isStreamMute(AudioManager.STREAM_MUSIC)) {
+                Log.i(TAG, "STREAM_MUSIC is muted, unmuting...")
+                am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
+            }
+            val currentVol = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+            val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            Log.i(TAG, "STREAM_MUSIC volume: $currentVol / $maxVol for ${device?.productName ?: "default"}")
+            if (currentVol == 0 && maxVol > 0) {
+                val safeVol = (maxVol * 0.5f).roundToInt().coerceAtLeast(1)
+                Log.i(TAG, "Volume is 0. Automatically setting STREAM_MUSIC volume to $safeVol")
+                am.setStreamVolume(AudioManager.STREAM_MUSIC, safeVol, AudioManager.FLAG_SHOW_UI)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to check or set audio volume", e)
         }
     }
 
@@ -163,8 +215,9 @@ open class AudioTrackWrapper(
                     .setTransferMode(AudioTrack.MODE_STREAM)
                     .build()
 
+            val preferred = findBestOutputDevice()
+            currentTargetDeviceId = preferred?.id
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val preferred = findBestOutputDevice()
                 if (preferred != null) {
                     val ok = track.setPreferredDevice(preferred)
                     Log.i(TAG, "AudioTrack.setPreferredDevice(${preferred.productName}, type=${preferred.type}) = $ok")
@@ -182,6 +235,7 @@ open class AudioTrackWrapper(
             try {
                 audioTrack?.setVolume(1.0f)
                 audioTrack?.play()
+                ensureAudibleVolume(preferred)
             } catch (e: IllegalStateException) {
                 Log.e(TAG, "Failed to start AudioTrack", e)
             }
@@ -221,8 +275,10 @@ open class AudioTrackWrapper(
 
     @Synchronized
     open fun stop() {
+        mainHandler?.removeCallbacks(routingChangeRunnable)
         val track = audioTrack ?: return
         audioTrack = null
+        currentTargetDeviceId = null
         try {
             if (track.state == AudioTrack.STATE_INITIALIZED) {
                 track.stop()
@@ -242,5 +298,6 @@ open class AudioTrackWrapper(
     companion object {
         private const val TAG = "AudioTrackWrapper"
         private const val BUFFER_SIZE_BYTES = 32768
+        private const val DEBOUNCE_DELAY_MS = 250L
     }
 }
