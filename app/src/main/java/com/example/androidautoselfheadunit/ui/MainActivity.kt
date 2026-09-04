@@ -282,10 +282,21 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to launch Android Auto settings", e)
                 isAutoStarting = false
+                finishSplashVideo()
                 showErrorDialog()
             }
         } else {
+            if (retryCount < 2) {
+                retryCount++
+                Log.i(TAG, "Accessibility service not yet ready, waiting briefly (attempt $retryCount/2)...")
+                lifecycleScope.launch {
+                    delay(500L)
+                    handleConnectionError()
+                }
+                return
+            }
             Log.i(TAG, "Accessibility service not enabled, showing permission dialog")
+            finishSplashVideo()
             showAccessibilityDialog()
         }
     }
@@ -333,25 +344,21 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private fun performCleanExit() {
         if (isStoppingServer) return
-        if (com.example.androidautoselfheadunit.service.AutoStartAccessibilityService.isServiceEnabled(this)) {
-            Log.i(TAG, "Exiting app: Requesting accessibility service to stop Head Unit Server")
-            isStoppingServer = true
-            statusView.visibility = android.view.View.VISIBLE
-            statusView.text = getString(com.example.androidautoselfheadunit.R.string.status_stopping_server)
+        Log.i(TAG, "Exiting app: Requesting accessibility service to stop Head Unit Server")
+        isStoppingServer = true
+        statusView.visibility = android.view.View.VISIBLE
+        statusView.text = getString(com.example.androidautoselfheadunit.R.string.status_stopping_server)
 
-            window.decorView.postDelayed({
-                if (isStoppingServer) {
-                    finishAndRemoveTask()
-                }
-            }, 4000)
-
-            com.example.androidautoselfheadunit.service.AutoStartAccessibilityService.stopServerAutomatically {
-                runOnUiThread {
-                    finishAndRemoveTask()
-                }
+        window.decorView.postDelayed({
+            if (isStoppingServer) {
+                finishAndRemoveTask()
             }
-        } else {
-            finishAndRemoveTask()
+        }, 4000)
+
+        com.example.androidautoselfheadunit.service.AutoStartAccessibilityService.stopServerAutomatically {
+            runOnUiThread {
+                finishAndRemoveTask()
+            }
         }
     }
 
@@ -496,6 +503,7 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
                         val mp = MediaPlayer().apply {
                             setDataSource(afd.fileDescriptor, afd.startOffset, afd.declaredLength)
                             setSurface(surfaceObj)
+                            setVolume(0f, 0f)
                             setOnPreparedListener { player ->
                                 Log.i(TAG, "MediaPlayer prepared, starting playback")
                                 player.start()

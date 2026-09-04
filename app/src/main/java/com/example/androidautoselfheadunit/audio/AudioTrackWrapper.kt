@@ -69,7 +69,17 @@ open class AudioTrackWrapper(
         }
         val written = track.write(data, offset, length)
         if (written < 0) {
-            Log.w(TAG, "AudioTrack.write returned $written")
+            Log.w(TAG, "AudioTrack.write returned $written, recovering AudioTrack...")
+            try {
+                stop()
+                start()
+                val retrack = audioTrack
+                if (retrack != null && retrack.state == AudioTrack.STATE_INITIALIZED) {
+                    retrack.write(data, offset, length)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to recover AudioTrack", e)
+            }
         }
     }
 

@@ -39,9 +39,11 @@ class AutoStartAccessibilityService : AccessibilityService() {
             currentMode.set(Mode.STOP_SERVER)
         }
 
+        fun hasInstance(): Boolean = instance != null
+
         fun stopServerAutomatically(onComplete: (() -> Unit)? = null) {
             val service = instance
-            if (service != null && isServiceEnabled(service)) {
+            if (service != null) {
                 Log.i(TAG, "stopServerAutomatically initiated from service instance")
                 armAutoStop(onComplete)
                 try {
@@ -68,11 +70,28 @@ class AutoStartAccessibilityService : AccessibilityService() {
         fun isServiceEnabled(context: Context): Boolean {
             if (instance != null) return true
 
+            val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? android.view.accessibility.AccessibilityManager
+            val enabledServices = am?.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+            if (enabledServices != null) {
+                for (service in enabledServices) {
+                    val serviceInfo = service.resolveInfo.serviceInfo
+                    if (serviceInfo.packageName == context.packageName &&
+                        serviceInfo.name == AutoStartAccessibilityService::class.java.name
+                    ) {
+                        return true
+                    }
+                }
+            }
+
             val expectedServiceName = "${context.packageName}/${AutoStartAccessibilityService::class.java.name}"
-            val enabledServicesSetting = Settings.Secure.getString(
-                context.contentResolver,
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-            ) ?: return false
+            val enabledServicesSetting = try {
+                Settings.Secure.getString(
+                    context.contentResolver,
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                )
+            } catch (_: Exception) {
+                null
+            } ?: return false
 
             val colonSplitter = TextUtils.SimpleStringSplitter(':')
             colonSplitter.setString(enabledServicesSetting)
