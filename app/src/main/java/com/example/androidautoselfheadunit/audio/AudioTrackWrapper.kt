@@ -11,7 +11,7 @@ open class AudioTrackWrapper(
     private val sampleRate: Int,
     private val channelConfig: Int,
     private val audioFormat: Int,
-    private val usage: Int = AudioAttributes.USAGE_MEDIA,
+    private val usage: Int = AudioAttributes.USAGE_UNKNOWN,
     private val contentType: Int = AudioAttributes.CONTENT_TYPE_MUSIC,
 ) {
     private var audioTrack: AudioTrack? = null

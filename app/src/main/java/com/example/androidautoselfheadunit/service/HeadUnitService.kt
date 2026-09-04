@@ -113,7 +113,7 @@ class HeadUnitService : Service() {
         val currentTransport = transport ?: return
         val profile = displayProfile ?: return
         stopAudioChannels()
-        mediaAudioChannel = createAudioChannel(MEDIA_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_STEREO, AudioAttributes.USAGE_MEDIA)
+        mediaAudioChannel = createAudioChannel(MEDIA_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_STEREO, AudioAttributes.USAGE_UNKNOWN)
         sysAudioChannel = createAudioChannel(SPEECH_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
         inputChannel =
             InputChannel(currentTransport, requireNotNull(touchMapper), serviceScope) { error ->
@@ -222,7 +222,7 @@ class HeadUnitService : Service() {
                 channelMask,
                 AudioFormat.ENCODING_PCM_16BIT,
                 usage,
-                if (usage == AudioAttributes.USAGE_MEDIA) {
+                if (usage == AudioAttributes.USAGE_MEDIA || usage == AudioAttributes.USAGE_UNKNOWN) {
                     AudioAttributes.CONTENT_TYPE_MUSIC
                 } else {
                     AudioAttributes.CONTENT_TYPE_SPEECH
