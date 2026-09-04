@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "Android Auto Self Head Unit App"
+rootProject.name = "Android Auto Standalone"
 include(":app")

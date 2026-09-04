@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Android Auto Self Head Unit</string>
+    <string name="app_name">Android Auto Standalone</string>
     <string name="status_connecting">Android Auto に接続しています…</string>
     <string name="status_starting_projection">Android Auto の画面を準備しています…</string>
     <string name="status_connection_failed">接続できませんでした</string>
@@ -10,7 +10,7 @@
     <string name="accessibility_service_description">Android Auto ヘッドユニットサーバーを自動起動するための補助サービスです。</string>
     <string name="status_auto_starting_server">Android Auto サーバーを自動起動中…</string>
     <string name="accessibility_permission_title">ユーザー補助の許可が必要です</string>
-    <string name="accessibility_permission_message">アプリアイコンからAndroid Autoを全自動で起動するために、設定画面で「Android Auto Self Head Unit」のユーザー補助をONにしてください。</string>
+    <string name="accessibility_permission_message">アプリアイコンからAndroid Autoを全自動で起動するために、設定画面で「Android Auto Standalone」のユーザー補助をONにしてください。</string>
     <string name="open_settings">設定を開く</string>
     <string name="status_stopping_server">Android Auto サーバーを停止中…</string>
 </resources>

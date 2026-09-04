@@ -118,7 +118,7 @@ class ControlChannel(
                 headUnitSoftwareVersion = "1.0"
                 canPlayNativeMediaDuringVr = false
                 hideProjectedClock = false
-                displayName = "Self Head Unit"
+                displayName = "Android Auto Standalone"
                 driverPosition = Control.DriverPosition.DRIVER_POSITION_RIGHT
 
                 headunitInfo =
