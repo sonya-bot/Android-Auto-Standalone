@@ -32,16 +32,33 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+import android.graphics.SurfaceTexture
+import android.media.MediaPlayer
+import android.net.Uri
+import android.view.Surface
+import android.view.TextureView
+import android.view.View
+
 class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     companion object {
         private const val TAG = "MainActivity"
         private const val MAX_AUTOSTART_RETRIES = 5
         private const val RETRY_DELAY_MS = 1000L
+        private const val SPLASH_FADE_DURATION_MS = 400L
+        private const val VIDEO_WIDTH = 1280
+        private const val VIDEO_HEIGHT = 720
     }
 
     private lateinit var displayProfile: ProjectionDisplayProfile
     private lateinit var statusView: TextView
     private lateinit var surfaceView: SurfaceView
+    private var splashVideoContainer: FrameLayout? = null
+    private var splashTextureView: TextureView? = null
+    private var splashMediaPlayer: MediaPlayer? = null
+    private var splashSurface: Surface? = null
+    private var splashAfd: android.content.res.AssetFileDescriptor? = null
+    private var isOpeningVideoFinished = false
+    private var isProjectionReady = false
     private var serviceBinder: HeadUnitService.LocalBinder? = null
     private var serviceBound = false
     private var stateCollectionJob: Job? = null
@@ -125,6 +142,7 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
                         android.view.Gravity.CENTER,
                     ),
                 )
+                setupSplashVideo(this)
             }
 
         setContentView(frameLayout)
@@ -156,9 +174,18 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
+        Log.i(TAG, "MainActivity onResume called")
         isStoppingServer = false
         if (surfaceView.holder.surface.isValid) {
             serviceBinder?.attachSurface(surfaceView.holder.surface)
+        }
+        try {
+            if (splashMediaPlayer != null && !isOpeningVideoFinished && splashMediaPlayer?.isPlaying == false) {
+                Log.i(TAG, "Resuming splashMediaPlayer in onResume")
+                splashMediaPlayer?.start()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to resume splashMediaPlayer", e)
         }
     }
 
@@ -190,9 +217,16 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
                             activeDialog = null
                             errorDialogVisible = false
                             statusView.visibility = android.view.View.GONE
+                            isProjectionReady = true
+                            if (isOpeningVideoFinished) {
+                                finishSplashVideo()
+                            }
                         }
                         is ConnectionState.Error -> {
                             Log.e(TAG, "Connection Error: ${state.cause.message}")
+                            if (retryCount >= MAX_AUTOSTART_RETRIES) {
+                                finishSplashVideo()
+                            }
                             handleConnectionError()
                         }
                         is ConnectionState.Connecting,
@@ -282,6 +316,13 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
+        try {
+            splashMediaPlayer?.stop()
+            splashMediaPlayer?.release()
+        } catch (_: Exception) {}
+        splashMediaPlayer = null
+        splashTextureView = null
+        splashVideoContainer = null
         if (isFinishing && !isStoppingServer) {
             com.example.androidautoselfheadunit.service.AutoStartAccessibilityService.stopServerAutomatically()
         }
@@ -428,5 +469,149 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         surfaceView.layoutParams =
             FrameLayout.LayoutParams(surfaceWidth, surfaceHeight, android.view.Gravity.CENTER)
+    }
+
+    private fun setupSplashVideo(parent: FrameLayout) {
+        val videoUri = Uri.parse("android.resource://$packageName/${com.example.androidautoselfheadunit.R.raw.opening_copen}")
+        Log.i(TAG, "Setting up splash video with TextureView: $videoUri")
+
+        val container = FrameLayout(this).apply {
+            setBackgroundColor(Color.BLACK)
+            setOnClickListener {
+                Log.i(TAG, "Opening video tapped - skipping splash")
+                finishSplashVideo()
+            }
+        }
+
+        val textureView = TextureView(this).apply {
+            surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
+                    Log.i(TAG, "TextureView surface available: ${width}x${height}")
+                    adjustAspectRatio(this@apply, width, height)
+                    try {
+                        val surfaceObj = Surface(surface)
+                        splashSurface = surfaceObj
+                        val afd = resources.openRawResourceFd(com.example.androidautoselfheadunit.R.raw.opening_copen)
+                        splashAfd = afd
+                        val mp = MediaPlayer().apply {
+                            setDataSource(afd.fileDescriptor, afd.startOffset, afd.declaredLength)
+                            setSurface(surfaceObj)
+                            setOnPreparedListener { player ->
+                                Log.i(TAG, "MediaPlayer prepared, starting playback")
+                                player.start()
+                            }
+                            setOnInfoListener { _, what, extra ->
+                                Log.i(TAG, "MediaPlayer info: what=$what extra=$extra")
+                                false
+                            }
+                            setOnCompletionListener {
+                                Log.i(TAG, "Opening video playback completed")
+                                isOpeningVideoFinished = true
+                                if (isProjectionReady) {
+                                    finishSplashVideo()
+                                }
+                            }
+                            setOnErrorListener { _, what, extra ->
+                                Log.w(TAG, "MediaPlayer error: what=$what, extra=$extra")
+                                finishSplashVideo()
+                                true
+                            }
+                            prepareAsync()
+                        }
+                        splashMediaPlayer = mp
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to initialize MediaPlayer", e)
+                        finishSplashVideo()
+                    }
+                }
+
+                override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
+                    adjustAspectRatio(this@apply, width, height)
+                }
+
+                override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
+                    cleanupSplashResources()
+                    return true
+                }
+
+                override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
+            }
+        }
+
+        container.addView(
+            textureView,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.Gravity.CENTER,
+            ),
+        )
+
+        splashVideoContainer = container
+        splashTextureView = textureView
+
+        parent.addView(
+            container,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+    }
+
+    private fun cleanupSplashResources() {
+        try {
+            splashMediaPlayer?.stop()
+            splashMediaPlayer?.release()
+        } catch (_: Exception) {}
+        splashMediaPlayer = null
+        try {
+            splashSurface?.release()
+        } catch (_: Exception) {}
+        splashSurface = null
+        try {
+            splashAfd?.close()
+        } catch (_: Exception) {}
+        splashAfd = null
+    }
+
+    private fun adjustAspectRatio(textureView: TextureView, viewWidth: Int, viewHeight: Int) {
+        if (viewWidth <= 0 || viewHeight <= 0) return
+        val videoAspect = VIDEO_WIDTH.toFloat() / VIDEO_HEIGHT.toFloat()
+        val viewAspect = viewWidth.toFloat() / viewHeight.toFloat()
+        val matrix = android.graphics.Matrix()
+        if (viewAspect > videoAspect) {
+            val scaleX = (viewHeight * videoAspect) / viewWidth
+            matrix.setScale(scaleX, 1.0f, viewWidth / 2f, viewHeight / 2f)
+        } else {
+            val scaleY = (viewWidth / videoAspect) / viewHeight
+            matrix.setScale(1.0f, scaleY, viewWidth / 2f, viewHeight / 2f)
+        }
+        textureView.setTransform(matrix)
+    }
+
+    private fun finishSplashVideo() {
+        val container = splashVideoContainer ?: return
+        if (container.visibility == View.GONE) return
+        runOnUiThread {
+            container.animate()
+                .alpha(0f)
+                .setDuration(SPLASH_FADE_DURATION_MS)
+                .withEndAction {
+                    cleanupSplashResources()
+                    container.visibility = View.GONE
+                }
+                .start()
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        Log.i(TAG, "MainActivity onPause called")
+        try {
+            if (splashMediaPlayer?.isPlaying == true) {
+                splashMediaPlayer?.pause()
+            }
+        } catch (_: Exception) {}
     }
 }
