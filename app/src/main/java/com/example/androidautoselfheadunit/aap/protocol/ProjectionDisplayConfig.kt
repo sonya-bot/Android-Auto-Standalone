@@ -28,7 +28,7 @@ data class ProjectionDisplayProfile(
 object ProjectionDisplayConfig {
     const val WIDTH_PX = 1920
     const val HEIGHT_PX = 1080
-    const val DENSITY_DPI = 213
+    const val DENSITY_DPI = 280
     const val PIXEL_ASPECT_RATIO_E4 = 10000
     private const val MIN_EVEN_DIMENSION = 2
     private const val EVEN_MASK = -2

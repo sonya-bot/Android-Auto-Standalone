@@ -13,7 +13,8 @@ class ProjectionDisplayConfigTest {
         assertEquals(258, profile.marginHeightPx)
         assertEquals(1920, profile.contentWidthPx)
         assertEquals(822, profile.contentHeightPx)
-        assertTrue(profile.widthDp >= 1280f)
+        assertEquals(280, profile.densityDpi)
+        assertTrue(profile.widthDp >= 900f)
     }
 
     @Test
